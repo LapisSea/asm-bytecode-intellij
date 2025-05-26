@@ -1,10 +1,10 @@
 plugins {
-	id 'org.jetbrains.intellij.platform' version '2.1.0'
+	id 'org.jetbrains.intellij.platform' version '2.5.0'
 	id 'java'
 }
 
 group 'asm.bytecode_outline.re'
-version '0.4.8'
+version '0.4.9'
 
 repositories {
 	mavenCentral()
