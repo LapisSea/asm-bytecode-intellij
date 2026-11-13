@@ -111,7 +111,7 @@
 	<depends>com.intellij.java</depends>
 	<depends>com.intellij.modules.platform</depends>
 	
-	<idea-version since-build="242.20224"/>
+	<idea-version since-build="263"/>
 	
 	<actions>
 		<action id="showBytecodeOutline" class="org.objectweb.asm.idea.ShowBytecodeOutlineAction"

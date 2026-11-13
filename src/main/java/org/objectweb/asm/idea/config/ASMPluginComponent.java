@@ -49,6 +49,7 @@ public class ASMPluginComponent implements PersistentStateComponent<Element>{
 	private boolean         skipDebug;
 	private boolean         skipCode;
 	private boolean         expandFrames;
+	private boolean         followEditor = true;
 	private GroovyCodeStyle codeStyle = GroovyCodeStyle.LEGACY;
 	
 	public ASMPluginComponent(final Project project){
@@ -94,6 +95,14 @@ public class ASMPluginComponent implements PersistentStateComponent<Element>{
 		this.expandFrames = expandFrames;
 	}
 	
+	public boolean isFollowEditor(){
+		return followEditor;
+	}
+	
+	public void setFollowEditor(final boolean followEditor){
+		this.followEditor = followEditor;
+	}
+	
 	// -------------------- state persistence
 	
 	@Override
@@ -104,6 +113,7 @@ public class ASMPluginComponent implements PersistentStateComponent<Element>{
 		asmNode.setAttribute("skipFrames", String.valueOf(skipFrames));
 		asmNode.setAttribute("skipCode", String.valueOf(skipCode));
 		asmNode.setAttribute("expandFrames", String.valueOf(expandFrames));
+		asmNode.setAttribute("followEditor", String.valueOf(followEditor));
 		root.addContent(asmNode);
 		Element groovyNode = new Element("groovy");
 		groovyNode.setAttribute("codeStyle", codeStyle.toString());
@@ -123,6 +133,8 @@ public class ASMPluginComponent implements PersistentStateComponent<Element>{
 			if(skipCodeStr != null) skipCode = Boolean.parseBoolean(skipCodeStr);
 			final String expandFramesStr = asmNode.getAttributeValue("expandFrames");
 			if(expandFramesStr != null) expandFrames = Boolean.parseBoolean(expandFramesStr);
+			final String followEditorStr = asmNode.getAttributeValue("followEditor");
+			if(followEditorStr != null) followEditor = Boolean.parseBoolean(followEditorStr);
 		}
 		Element groovyNode = state.getChild("groovy");
 		if(groovyNode != null){
@@ -138,6 +150,7 @@ public class ASMPluginComponent implements PersistentStateComponent<Element>{
 		       ", skipDebug=" + skipDebug +
 		       ", skipCode=" + skipCode +
 		       ", expandFrames=" + expandFrames +
+		       ", followEditor=" + followEditor +
 		       ", codeStyle=" + codeStyle +
 		       '}';
 	}

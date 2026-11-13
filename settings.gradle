@@ -1,2 +1,6 @@
-rootProject.name = 'ASM-Bytecode-Outline'
+plugins {
+	// Lets Gradle download the JDK the IntelliJ Platform requires if it is not installed
+	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
 
+rootProject.name = 'ASM-Bytecode-Outline'

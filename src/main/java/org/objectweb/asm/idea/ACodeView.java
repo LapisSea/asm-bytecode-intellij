@@ -61,8 +61,9 @@ public class ACodeView extends SimpleToolWindowPanel implements Disposable{
 	private final   String  extension;
 	
 	
-	protected Editor      editor;
-	protected Document    document;
+	protected Editor             editor;
+	protected Document           document;
+	protected DefaultActionGroup toolbarActions;
 	// used for diff view
 	private   String      previousCode;
 	private   VirtualFile previousFile;
@@ -87,6 +88,7 @@ public class ACodeView extends SimpleToolWindowPanel implements Disposable{
 		add(editorComponent);
 		final AnAction     diffAction = createShowDiffAction();
 		DefaultActionGroup group      = new DefaultActionGroup();
+		toolbarActions = group;
 		group.add(diffAction);
 		group.add(new ShowSettingsAction());
 		
