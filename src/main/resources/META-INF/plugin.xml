@@ -1,14 +1,30 @@
 <idea-plugin url="https://github.com/thiakil/asm-bytecode-intellij">
 	<name>ASM Bytecode Outline Rebooted</name>
-	<description>
+	<description><![CDATA[
 		Displays bytecode for Java classes and ASMified code which will help you in your class generation.
 		Updated for newer IDEA versions.
-	</description>
-	<version>0.4.9</version>
+		<ul>
+			<li><b>Bytecode</b>, <b>ASMified</b> and <b>Groovified</b> views of the class at the caret, compiling it first if needed</li>
+			<li><b>Follow Editor</b> mode: the bytecode view follows the file and class being edited</li>
+			<li>Caret syncing: highlights the bytecode generated from the source line under the caret, and the source line of the selected bytecode</li>
+			<li>Diff view against the previous version of the bytecode</li>
+			<li>Works with source files, library sources and .class files</li>
+		</ul>
+	]]></description>
+	<version>0.5.0</version>
 	<vendor>LapisSea / thiakil / melix</vendor>
 	<id>asm.bytecode_outline.re</id>
 	
 	<change-notes><![CDATA[
+		<b>Version 0.5.0</b>
+		<ul>
+			<li>Follow Editor mode: the bytecode view shows the class being edited and follows file and class changes</li>
+			<li>Caret syncing: the bytecode of the source line under the caret is highlighted, and the selected bytecode highlights its source line</li>
+			<li>Fix an error when Show Bytecode Outline was used from the project view</li>
+			<li>Class files are read in the background instead of on the UI thread</li>
+			<li>Update ASM to 9.11.1</li>
+			<li>Update for Intellij 2026.3 (older IDEs can keep using 0.4.9)</li>
+		</ul>
 		<b>Version 0.4.9</b>
 		<ul>
 			<li>Update ASM to 9.8</li>
