@@ -1,8 +1,8 @@
 package org.objectweb.asm.idea.sync;
 
-import org.testng.annotations.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.util.TraceClassVisitor;
+import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,7 +13,7 @@ import java.util.List;
 import static org.testng.Assert.*;
 
 public class LineMappingTest{
-
+	
 	private static final String SAMPLE = String.join("\n",
 		/* 0*/ "// class version 65.0 (65)",
 		/* 1*/ "// access flags 0x21",
@@ -43,7 +43,7 @@ public class LineMappingTest{
 		/*25*/ "    MAXLOCALS = 1",
 		/*26*/ "}"
 	);
-
+	
 	@Test
 	void bytecodeToSource(){
 		var m = LineMapping.parse(SAMPLE);
@@ -56,7 +56,7 @@ public class LineMappingTest{
 		assertEquals(m.sourceLineFor(-1), -1);
 		assertEquals(m.sourceLineFor(1000), -1);
 	}
-
+	
 	@Test
 	void sourceToBytecode(){
 		var m = LineMapping.parse(SAMPLE);
@@ -64,7 +64,7 @@ public class LineMappingTest{
 		assertEquals(m.bytecodeRangesFor(3), List.of(new LineMapping.Range(10, 13)));
 		assertEquals(m.bytecodeRangesFor(0), List.of());
 	}
-
+	
 	@Test
 	void decompiledLines(){
 		// Decompiled code puts class file line 2 on line 10, line 3 nowhere
@@ -74,13 +74,13 @@ public class LineMappingTest{
 		assertEquals(m.bytecodeRangesFor(3), List.of());
 		for(int line = 10; line<=13; line++) assertEquals(m.sourceLineFor(line), -1, "line " + line);
 	}
-
+	
 	@Test
 	void noDebugInfo(){
 		var m = LineMapping.parse(SAMPLE.replaceAll("(?m)^ +LINENUMBER.*\n", ""));
 		assertTrue(m.isEmpty());
 	}
-
+	
 	/**
 	 * Checks the assumptions about the Textifier format against real ASM output.
 	 */
@@ -96,7 +96,7 @@ public class LineMappingTest{
 		var m     = LineMapping.parse(text);
 		var lines = text.split("\n", -1);
 		assertFalse(m.isEmpty());
-
+		
 		int lineNumbers = 0;
 		for(int i = 0; i<lines.length; i++){
 			String t = lines[i].strip();
@@ -117,11 +117,11 @@ public class LineMappingTest{
 		}
 		assertTrue(lineNumbers>=4, text);
 	}
-
+	
 	@SuppressWarnings("unused")
 	static class Fixture{
 		int field = Integer.parseInt("1");
-
+		
 		int sum(int a, int b){
 			int c = a + b;
 			if(c>10){
@@ -129,7 +129,7 @@ public class LineMappingTest{
 			}
 			return c;
 		}
-
+		
 		Runnable lambda(){
 			return () -> System.out.println(field);
 		}

@@ -15,7 +15,7 @@ import java.util.List;
  * This is the source side of the alignment done by {@link InsnMapping}.
  */
 public final class SourceAnchors{
-
+	
 	public enum Kind{
 		INVOKE, INIT, NEW, LAMBDA, METHOD_REF, CONCAT,
 		FIELD, VAR, CONST,
@@ -24,24 +24,24 @@ public final class SourceAnchors{
 		ARRAY_LOAD, ARRAY_STORE, ARRAY_LENGTH, NEW_ARRAY,
 		RETURN, THROW, MONITOR
 	}
-
+	
 	public enum Mode{READ, WRITE, ANY}
-
+	
 	/**
-	 * @param name     method/field/variable name, or the operator for BINOP
-	 * @param line     0-based line javac attributes the instruction to
-	 * @param own      the text that is highlighted for this anchor, the smallest range that still identifies it
-	 * @param element  the source construct
+	 * @param name    method/field/variable name, or the operator for BINOP
+	 * @param line    0-based line javac attributes the instruction to
+	 * @param own     the text that is highlighted for this anchor, the smallest range that still identifies it
+	 * @param element the source construct
 	 */
 	public record Anchor(Kind kind, String name, int argCount, int line, TextRange own, PsiElement element, Mode mode){ }
-
+	
 	private final Document     document;
 	private final List<Anchor> out = new ArrayList<>();
-
+	
 	private SourceAnchors(Document document){
 		this.document = document;
 	}
-
+	
 	/**
 	 * @param roots the code of one method, in order. For constructors this includes field initializers and initializer blocks.
 	 */
@@ -50,21 +50,21 @@ public final class SourceAnchors{
 		for(var root : roots) a.visit(root);
 		return a.out;
 	}
-
+	
 	private void add(Kind kind, @Nullable String name, int argCount, PsiElement lineElement, TextRange own, PsiElement element, Mode mode){
 		if(own == null || own.isEmpty()) own = element.getTextRange();
 		int offset = Math.min(lineElement.getTextRange().getStartOffset(), document.getTextLength());
 		out.add(new Anchor(kind, name, argCount, document.getLineNumber(offset), own, element, mode));
 	}
-
+	
 	private void add(Kind kind, @Nullable String name, PsiElement element){
 		add(kind, name, -1, element, element.getTextRange(), element, Mode.ANY);
 	}
-
+	
 	private void visitChildren(PsiElement e){
 		for(PsiElement c = e.getFirstChild(); c != null; c = c.getNextSibling()) visit(c);
 	}
-
+	
 	private void visit(@Nullable PsiElement e){
 		if(e == null) return;
 		switch(e){
@@ -93,8 +93,8 @@ public final class SourceAnchors{
 			case PsiTypeCastExpression cast -> {
 				visit(cast.getOperand());
 				var type = cast.getCastType();
-				var own  = cast.getOperand() == null? cast.getTextRange() :
-				           new TextRange(cast.getTextRange().getStartOffset(), cast.getOperand().getTextRange().getStartOffset());
+				var own = cast.getOperand() == null? cast.getTextRange() :
+				          new TextRange(cast.getTextRange().getStartOffset(), cast.getOperand().getTextRange().getStartOffset());
 				boolean primitive = type != null && type.getType() instanceof PsiPrimitiveType;
 				add(primitive? Kind.CONVERT : Kind.CHECKCAST, type == null? null : type.getType().getPresentableText(), -1, cast, own, cast, Mode.ANY);
 			}
@@ -193,21 +193,21 @@ public final class SourceAnchors{
 			default -> visitChildren(e);
 		}
 	}
-
+	
 	private void visitCall(PsiMethodCallExpression c){
 		var ref  = c.getMethodExpression();
 		var name = ref.getReferenceName();
 		var args = c.getArgumentList();
-		var own  = ref.getReferenceNameElement() == null? c.getTextRange() :
-		           new TextRange(ref.getReferenceNameElement().getTextRange().getStartOffset(), c.getTextRange().getEndOffset());
-
+		var own = ref.getReferenceNameElement() == null? c.getTextRange() :
+		          new TextRange(ref.getReferenceNameElement().getTextRange().getStartOffset(), c.getTextRange().getEndOffset());
+		
 		if("super".equals(name) || "this".equals(name)){
 			add(Kind.VAR, "this", -1, c, own, c, Mode.READ);
 			visit(args);
 			add(Kind.INIT, "<init>", args.getExpressionCount(), args, own, c, Mode.ANY);
 			return;
 		}
-
+		
 		var qualifier = ref.getQualifierExpression();
 		if(qualifier != null){
 			visit(qualifier);
@@ -222,7 +222,7 @@ public final class SourceAnchors{
 		// javac attributes the invoke to the line of the argument list
 		add(Kind.INVOKE, name, args.getExpressionCount(), args, own, c, Mode.ANY);
 	}
-
+	
 	private void visitNew(PsiNewExpression n){
 		var own = n.getArgumentList() == null? n.getTextRange() :
 		          new TextRange(n.getTextRange().getStartOffset(), n.getArgumentList().getTextRange().getEndOffset());
@@ -248,7 +248,7 @@ public final class SourceAnchors{
 		if(args != null) visit(args);
 		add(Kind.INIT, "<init>", args == null? -1 : args.getExpressionCount(), n, own, n, Mode.ANY);
 	}
-
+	
 	private void visitReference(PsiReferenceExpression r, Mode mode){
 		var nameElement = r.getReferenceNameElement();
 		var own         = nameElement == null? r.getTextRange() : nameElement.getTextRange();
@@ -257,8 +257,8 @@ public final class SourceAnchors{
 			case PsiLocalVariable ignored -> add(Kind.VAR, r.getReferenceName(), -1, r, own, r, mode);
 			case PsiParameter ignored -> add(Kind.VAR, r.getReferenceName(), -1, r, own, r, mode);
 			case PsiField f -> {
-				var qualifier = r.getQualifierExpression();
-				boolean constant = mode == Mode.READ && f.hasModifierProperty(PsiModifier.FINAL) && f.computeConstantValue() != null;
+				var     qualifier = r.getQualifierExpression();
+				boolean constant  = mode == Mode.READ && f.hasModifierProperty(PsiModifier.FINAL) && f.computeConstantValue() != null;
 				if(qualifier != null && !(qualifier instanceof PsiReferenceExpression q && q.resolve() instanceof PsiClass)){
 					visit(qualifier);
 				}else if(qualifier == null && !f.hasModifierProperty(PsiModifier.STATIC) && !constant){
@@ -280,13 +280,13 @@ public final class SourceAnchors{
 			}
 		}
 	}
-
+	
 	private void visitAssignment(PsiAssignmentExpression a){
 		var     lhs      = PsiUtil.skipParenthesizedExprDown(a.getLExpression());
 		var     op       = a.getOperationTokenType();
 		boolean compound = op != JavaTokenType.EQ;
 		var     opRange  = a.getOperationSign().getTextRange();
-
+		
 		switch(lhs){
 			case PsiArrayAccessExpression arr -> {
 				visit(arr.getArrayExpression());
@@ -317,7 +317,7 @@ public final class SourceAnchors{
 			case null, default -> visitChildren(a);
 		}
 	}
-
+	
 	private void visitUnary(PsiUnaryExpression u){
 		var op      = u.getOperationTokenType();
 		var operand = PsiUtil.skipParenthesizedExprDown(u.getOperand());
@@ -346,7 +346,7 @@ public final class SourceAnchors{
 		else if(op == JavaTokenType.EXCL) add(Kind.JUMP, "!", -1, u, opRange, u, Mode.ANY);
 		else if(op == JavaTokenType.TILDE) add(Kind.BINOP, "^", -1, u, opRange, u, Mode.ANY);
 	}
-
+	
 	private void visitPolyadic(PsiPolyadicExpression p){
 		var op       = p.getOperationTokenType();
 		var operands = p.getOperands();
@@ -371,7 +371,7 @@ public final class SourceAnchors{
 			add(jump? Kind.JUMP : binopKind(p.getType()), opName(op), -1, p, token == null? p.getTextRange() : token.getTextRange(), p, Mode.ANY);
 		}
 	}
-
+	
 	private void visitForeach(PsiForeachStatement s){
 		visit(s.getIteratedValue());
 		var header = s.getRParenth() == null? s.getTextRange() :
@@ -389,11 +389,11 @@ public final class SourceAnchors{
 		add(Kind.VAR, p.getName(), -1, p, nameRange(p), p, Mode.WRITE);
 		visit(s.getBody());
 	}
-
+	
 	private static Kind binopKind(@Nullable PsiType type){
 		return type != null && type.equalsToText("java.lang.String")? Kind.CONCAT : Kind.BINOP;
 	}
-
+	
 	private static String opName(IElementType op){
 		if(op == JavaTokenType.PLUS || op == JavaTokenType.PLUSEQ) return "+";
 		if(op == JavaTokenType.MINUS || op == JavaTokenType.MINUSEQ) return "-";
@@ -408,16 +408,16 @@ public final class SourceAnchors{
 		if(op == JavaTokenType.GTGTGT || op == JavaTokenType.GTGTGTEQ) return ">>>";
 		return op.toString();
 	}
-
+	
 	private static TextRange nameRange(PsiNameIdentifierOwner owner){
 		var id = owner.getNameIdentifier();
 		return id == null? owner.getTextRange() : id.getTextRange();
 	}
-
+	
 	private static TextRange bracketRange(PsiArrayAccessExpression a){
 		return new TextRange(a.getArrayExpression().getTextRange().getEndOffset(), a.getTextRange().getEndOffset());
 	}
-
+	
 	private static TextRange tokenRange(PsiElement parent, IElementType token){
 		for(PsiElement c = parent.getFirstChild(); c != null; c = c.getNextSibling()){
 			if(c instanceof PsiJavaToken t && t.getTokenType() == token) return t.getTextRange();

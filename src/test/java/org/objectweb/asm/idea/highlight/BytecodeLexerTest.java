@@ -3,6 +3,7 @@ package org.objectweb.asm.idea.highlight;
 import com.intellij.psi.TokenType;
 import com.intellij.psi.tree.IElementType;
 import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.util.Printer;
 import org.objectweb.asm.util.TraceClassVisitor;
 import org.testng.annotations.Test;
 
@@ -12,25 +13,28 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.objectweb.asm.idea.highlight.BytecodeTokens.*;
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertTrue;
 
 public class BytecodeLexerTest{
-
+	
 	private record Tok(IElementType type, String text){
 		@Override
 		public String toString(){ return type + ":" + text; }
 	}
-
+	
 	private static List<Tok> lex(String text){
 		return lex(text, 0);
 	}
-
+	
 	private static List<Tok> lex(String text, int from){
 		var lexer = new BytecodeLexer();
 		lexer.start(text, from, text.length(), 0);
-		var out = new ArrayList<Tok>();
+		var out      = new ArrayList<Tok>();
 		int expected = from;
 		while(lexer.getTokenType() != null){
 			assertEquals(lexer.getTokenStart(), expected, "tokens must be contiguous, after " + (out.isEmpty()? "start" : out.getLast()));
@@ -42,16 +46,18 @@ public class BytecodeLexerTest{
 		assertEquals(expected, text.length(), "all text covered");
 		return out;
 	}
-
-	/** Tokens of a line, without whitespace */
+	
+	/**
+	 * Tokens of a line, without whitespace
+	 */
 	private static List<Tok> line(String line){
 		return lex(line).stream().filter(t -> t.type != TokenType.WHITE_SPACE).toList();
 	}
-
+	
 	private static Tok t(IElementType type, String text){
 		return new Tok(type, text);
 	}
-
+	
 	private static String textify(String resource) throws IOException{
 		try(InputStream in = BytecodeLexerTest.class.getResourceAsStream(resource)){
 			assertNotNull(in, resource);
@@ -60,15 +66,15 @@ public class BytecodeLexerTest{
 			return sw.toString();
 		}
 	}
-
+	
 	private static final String[] CLASSES = {
 		"/org/objectweb/asm/idea/docs/InsnExplainerTest$Fixture.class",
 		"/org/objectweb/asm/idea/docs/InsnExplainerTest$Fixture$R.class",
 		"/org/objectweb/asm/idea/docs/FrameExplainerTest$Fixture.class",
 		"/org/objectweb/asm/idea/docs/InfoExplainerTest$Fixture.class",
 		"/org/objectweb/asm/idea/sync/InsnMappingFixture.class",
-	};
-
+		};
+	
 	@Test
 	public void coversRealOutputAndRestartsAtAnyLine() throws IOException{
 		for(String c : CLASSES){
@@ -86,10 +92,10 @@ public class BytecodeLexerTest{
 			}
 		}
 	}
-
+	
 	@Test
 	public void everyInstructionStartsWithAnOpcode() throws IOException{
-		var opcodes = java.util.Set.of(org.objectweb.asm.util.Printer.OPCODES);
+		var opcodes = Set.of(Printer.OPCODES);
 		for(String c : CLASSES){
 			for(String l : textify(c).split("\n")){
 				String first = l.strip().split(" ")[0];
@@ -99,7 +105,7 @@ public class BytecodeLexerTest{
 			}
 		}
 	}
-
+	
 	@Test
 	public void methodCall(){
 		assertEquals(line("    INVOKESPECIAL java/lang/Object.<init> ()V"), List.of(
@@ -110,13 +116,13 @@ public class BytecodeLexerTest{
 			t(PARENS, "("), t(PRIMITIVE, "I"), t(PACKAGE, "Ljava/util/"), t(CLASS_NAME, "List"), t(PACKAGE, ";"), t(PARENS, ")"),
 			t(BRACKETS, "["), t(PRIMITIVE, "J")));
 	}
-
+	
 	@Test
 	public void fieldAccess(){
 		assertEquals(line("    GETFIELD a/B$C.count : I"), List.of(
 			t(OPCODE, "GETFIELD"), t(PACKAGE, "a/"), t(CLASS_NAME, "B$C"), t(PUNCTUATION, "."), t(FIELD, "count"), t(PUNCTUATION, ":"), t(PRIMITIVE, "I")));
 	}
-
+	
 	@Test
 	public void declarations(){
 		assertEquals(line("  public static run(Ljava/util/List;)V throws java/io/IOException"), List.of(
@@ -129,7 +135,7 @@ public class BytecodeLexerTest{
 			t(KEYWORD, "public"), t(KEYWORD, "class"), t(CLASS_NAME, "Foo"), t(KEYWORD, "extends"), t(PACKAGE, "java/lang/"), t(CLASS_NAME, "Object"),
 			t(BRACES, "{")));
 	}
-
+	
 	@Test
 	public void operands(){
 		assertEquals(line("    LDC \"a \\\"b\\\"\""), List.of(t(OPCODE, "LDC"), t(STRING, "\"a \\\"b\\\"\"")));
@@ -145,7 +151,7 @@ public class BytecodeLexerTest{
 			t(OPCODE, "INVOKEDYNAMIC"), t(METHOD_CALL, "get"), t(PARENS, "("), t(PARENS, ")"),
 			t(PACKAGE, "Ljava/util/function/"), t(CLASS_NAME, "Supplier"), t(PACKAGE, ";"), t(BRACKETS, "[")));
 	}
-
+	
 	@Test
 	public void notInstructions(){
 		assertEquals(line("   L0"), List.of(t(LABEL, "L0")));
@@ -158,7 +164,7 @@ public class BytecodeLexerTest{
 		assertEquals(line("  @Ljava/lang/Deprecated;() // invisible"), List.of(
 			t(ANNOTATION, "@Ljava/lang/Deprecated;"), t(PARENS, "("), t(PARENS, ")"), t(COMMENT, "// invisible")));
 	}
-
+	
 	@Test
 	public void frames(){
 		assertEquals(line("   FRAME FULL [java/lang/reflect/Type I T [Ljava/lang/reflect/Type; J] []"), List.of(

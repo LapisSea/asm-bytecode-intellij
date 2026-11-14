@@ -2,7 +2,11 @@ package org.objectweb.asm.idea.nav;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.idea.highlight.BytecodeReference;
-import org.objectweb.asm.idea.nav.BytecodeUsages.*;
+import org.objectweb.asm.idea.nav.BytecodeUsages.ClassSymbol;
+import org.objectweb.asm.idea.nav.BytecodeUsages.LabelSymbol;
+import org.objectweb.asm.idea.nav.BytecodeUsages.LocalSymbol;
+import org.objectweb.asm.idea.nav.BytecodeUsages.MemberSymbol;
+import org.objectweb.asm.idea.nav.BytecodeUsages.Usage;
 import org.objectweb.asm.idea.sync.RecordingTextifier;
 import org.objectweb.asm.util.TraceClassVisitor;
 import org.testng.annotations.Test;
@@ -11,10 +15,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertTrue;
 
 public class BytecodeUsagesTest{
-
+	
 	private static RecordingTextifier.Result record(String nested) throws IOException{
 		try(InputStream in = BytecodeUsagesTest.class.getResourceAsStream("BytecodeUsagesTest$" + nested + ".class")){
 			assertNotNull(in, nested);
@@ -23,10 +29,12 @@ public class BytecodeUsagesTest{
 			return t.print();
 		}
 	}
-
+	
 	private static final String OWNER = "org/objectweb/asm/idea/nav/BytecodeUsagesTest$Fixture";
-
-	/** The usages as "LINE_TEXT_STRIPPED [w][d]" */
+	
+	/**
+	 * The usages as "LINE_TEXT_STRIPPED [w][d]"
+	 */
 	private static List<String> describe(String text, List<Usage> usages){
 		var lines = text.split("\n", -1);
 		return usages.stream().map(u -> {
@@ -34,7 +42,7 @@ public class BytecodeUsagesTest{
 			return lines[u.line()].strip() + (u.write()? " [w]" : "") + (u.declaration()? " [d]" : "");
 		}).toList();
 	}
-
+	
 	@Test
 	public void fieldReadsAndWrites() throws IOException{
 		var text   = record("Fixture").text();
@@ -45,7 +53,7 @@ public class BytecodeUsagesTest{
 		assertEquals(d.stream().filter(s -> s.startsWith("GETFIELD")).count(), 2, d.toString());
 		for(var u : usages) assertEquals(text.substring(u.range().getStartOffset(), u.range().getEndOffset()), "count");
 	}
-
+	
 	@Test
 	public void methodsByDescriptor() throws IOException{
 		var text = record("Fixture").text();
@@ -55,7 +63,7 @@ public class BytecodeUsagesTest{
 		var two = describe(text, BytecodeUsages.find(text, new MemberSymbol(BytecodeReference.Kind.METHOD, OWNER, "add", "(II)V"), String::equals));
 		assertEquals(two.size(), 1, "only the declaration: " + two);
 	}
-
+	
 	@Test
 	public void throughSubclass() throws IOException{
 		var text = record("User").text();
@@ -65,7 +73,7 @@ public class BytecodeUsagesTest{
 		var found = BytecodeUsages.find(text, sym, (used, declared) -> used.equals(sub) && declared.equals(OWNER));
 		assertEquals(describe(text, found), List.of("INVOKEVIRTUAL " + sub + ".add (I)V"));
 	}
-
+	
 	@Test
 	public void innerClassConstructor() throws IOException{
 		var text = record("Fixture").text();
@@ -75,7 +83,7 @@ public class BytecodeUsagesTest{
 		assertEquals(d.size(), 1, d.toString());
 		assertTrue(d.getFirst().startsWith("INVOKESPECIAL"), d.toString());
 	}
-
+	
 	@Test
 	public void localVariables() throws IOException{
 		var r    = record("Fixture");
@@ -89,7 +97,7 @@ public class BytecodeUsagesTest{
 		assertEquals(d.stream().filter(s -> s.startsWith("ILOAD 1")).count(), 2, d.toString());
 		assertTrue(d.stream().anyMatch(s -> s.startsWith("IINC 1") && s.endsWith("[w]")), d.toString());
 	}
-
+	
 	@Test
 	public void classes() throws IOException{
 		var text = record("Fixture").text();
@@ -98,7 +106,7 @@ public class BytecodeUsagesTest{
 		var sym = BytecodeUsages.at(text, null, text.indexOf("class " + OWNER) + 8);
 		assertEquals(sym, new ClassSymbol(OWNER));
 	}
-
+	
 	@Test
 	public void labels() throws IOException{
 		var text = record("Fixture").text();
@@ -109,17 +117,17 @@ public class BytecodeUsagesTest{
 		assertEquals(d.stream().filter(s -> s.endsWith("[d]")).count(), 1, d.toString());
 		assertTrue(d.size()>=2, d.toString());
 	}
-
+	
 	@SuppressWarnings("unused")
 	static class Fixture{
 		int count;
-
+		
 		void add(int n){
 			count += n;
 		}
-
+		
 		void add(int a, int b){ }
-
+		
 		int loop(int n){
 			while(n<10) n++;
 			add(n);
@@ -127,18 +135,18 @@ public class BytecodeUsagesTest{
 			count = 0;
 			return count;
 		}
-
+		
 		Object inner(){
 			return new Inner(1);
 		}
-
+		
 		class Inner{
 			Inner(int x){ }
 		}
 	}
-
+	
 	static class Sub extends Fixture{ }
-
+	
 	@SuppressWarnings("unused")
 	static class User{
 		void use(Sub s){

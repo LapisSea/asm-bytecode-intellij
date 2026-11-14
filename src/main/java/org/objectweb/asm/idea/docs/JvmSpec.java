@@ -29,16 +29,16 @@ import java.util.regex.Pattern;
  */
 @Service(Service.Level.APP)
 public final class JvmSpec{
-
+	
 	private static final Logger LOG = Logger.getInstance(JvmSpec.class);
-
-	private static final String   URL_PATTERN  = "https://docs.oracle.com/javase/specs/jvms/se%d/html/";
-	private static final String   PAGE         = "jvms-6.html";
-	private static final int      OLDEST       = 21;
-	private static final Duration REFRESH      = Duration.ofDays(30);
-	private static final Duration RETRY_DELAY  = Duration.ofMinutes(1);
-	private static final Pattern  CACHED_NAME  = Pattern.compile("jvms-6-se(\\d+)\\.html");
-
+	
+	private static final String   URL_PATTERN = "https://docs.oracle.com/javase/specs/jvms/se%d/html/";
+	private static final String   PAGE        = "jvms-6.html";
+	private static final int      OLDEST      = 21;
+	private static final Duration REFRESH     = Duration.ofDays(30);
+	private static final Duration RETRY_DELAY = Duration.ofMinutes(1);
+	private static final Pattern  CACHED_NAME = Pattern.compile("jvms-6-se(\\d+)\\.html");
+	
 	/**
 	 * The documentation of one instruction, or of a family like {@code if_icmp<cond>}.
 	 *
@@ -47,20 +47,22 @@ public final class JvmSpec{
 	 * @param sections section name (Operation, Format, Forms, Operand Stack, Description, Notes...) to its HTML, in order
 	 */
 	public record Entry(String title, String url, Map<String, String> sections){ }
-
-	/** @param byOpcode keyed by opcode value */
+	
+	/**
+	 * @param byOpcode keyed by opcode value
+	 */
 	public record Spec(int version, Map<Integer, Entry> byOpcode){ }
-
+	
 	/**
 	 * @param page a page of the spec with an optional anchor, like jvms-4.html#jvms-4.7.4
 	 */
 	public static String url(int version, String page){
 		return String.format(URL_PATTERN, version) + page;
 	}
-
+	
 	private @Nullable CompletableFuture<Spec> spec;
 	private           Instant                 failedAt;
-
+	
 	/**
 	 * Starts loading the spec if needed. Completes exceptionally if it could not be loaded; asking again a little
 	 * later retries.
@@ -78,10 +80,10 @@ public final class JvmSpec{
 		spec = s;
 		return s;
 	}
-
+	
 	private Spec load(){
-		Path dir = Path.of(PathManager.getSystemPath(), "asm-bytecode-outline");
-		Path cached = findCached(dir);
+		Path dir           = Path.of(PathManager.getSystemPath(), "asm-bytecode-outline");
+		Path cached        = findCached(dir);
 		int  cachedVersion = cached == null? -1 : version(cached);
 		try{
 			if(cached != null && Files.getLastModifiedTime(cached).toInstant().plus(REFRESH).isAfter(Instant.now())){
@@ -90,7 +92,7 @@ public final class JvmSpec{
 		}catch(IOException e){
 			LOG.debug(e);
 		}
-
+		
 		IOException failure = null;
 		// The newest version is published before the IDE runs on it, so look a bit ahead
 		int newest = Math.max(Runtime.version().feature() + 2, cachedVersion + 1);
@@ -126,7 +128,7 @@ public final class JvmSpec{
 		throw new IllegalStateException("Could not download the JVM specification from docs.oracle.com" +
 		                                (failure == null? "" : ": " + failure.getMessage()), failure);
 	}
-
+	
 	private static @Nullable Path findCached(Path dir){
 		try(var files = Files.list(dir)){
 			return files.filter(f -> CACHED_NAME.matcher(f.getFileName().toString()).matches()).findFirst().orElse(null);
@@ -134,18 +136,18 @@ public final class JvmSpec{
 			return null;
 		}
 	}
-
+	
 	private static int version(Path cached){
 		Matcher m = CACHED_NAME.matcher(cached.getFileName().toString());
 		return m.matches()? Integer.parseInt(m.group(1)) : -1;
 	}
-
+	
 	private static Spec parse(int version, String html){
 		return new Spec(version, parse(html, String.format(URL_PATTERN, version)));
 	}
-
+	
 	// ------------------------------------------------------------ parsing
-
+	
 	private static final Pattern INSTRUCTION = Pattern.compile("<div class=\"section-execution\" id=\"(jvms-6\\.5\\.[^\"]+)\">");
 	private static final Pattern SECTION     = Pattern.compile("<div class=\"section\" id=\"[^\"]*\">");
 	private static final Pattern H3          = Pattern.compile("<h3 class=\"title\">(.*?)</h3>", Pattern.DOTALL);
@@ -153,7 +155,7 @@ public final class JvmSpec{
 	private static final Pattern FORM        = Pattern.compile("([a-z][a-z0-9_]*)\\s*=\\s*(\\d+)\\s*\\(0x");
 	private static final Pattern CLOSING     = Pattern.compile("(?:\\s*</div>)+\\s*$");
 	private static final Pattern TAG         = Pattern.compile("<[^>]+>");
-
+	
 	/**
 	 * Splits the instruction chapter into its instructions. Tolerates anything it does not understand by
 	 * leaving it out.
@@ -176,7 +178,7 @@ public final class JvmSpec{
 		}
 		return Collections.unmodifiableMap(result);
 	}
-
+	
 	private static void parseInstruction(String body, String baseUrl, String url, Map<Integer, Entry> result){
 		Matcher title = H3.matcher(body);
 		if(!title.find()) return;
@@ -191,11 +193,11 @@ public final class JvmSpec{
 		}
 		String forms = sections.get("Forms");
 		if(forms == null) return;
-		var entry = new Entry(unescape(text(title.group(1))), url, Collections.unmodifiableMap(sections));
-		Matcher form = FORM.matcher(unescape(text(forms)));
+		var     entry = new Entry(unescape(text(title.group(1))), url, Collections.unmodifiableMap(sections));
+		Matcher form  = FORM.matcher(unescape(text(forms)));
 		while(form.find()) result.putIfAbsent(Integer.parseInt(form.group(2)), entry);
 	}
-
+	
 	private static void addSection(String chunk, String baseUrl, Map<String, String> sections){
 		Matcher h = H4.matcher(chunk);
 		if(!h.find()) return;
@@ -204,11 +206,11 @@ public final class JvmSpec{
 		                 .replace("href=\"#", "href=\"" + baseUrl + PAGE + "#");
 		sections.putIfAbsent(text(h.group(1)).strip(), content);
 	}
-
+	
 	static String text(String html){
 		return TAG.matcher(html).replaceAll("");
 	}
-
+	
 	private static String unescape(String s){
 		return s.replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ").replace("&amp;", "&");
 	}

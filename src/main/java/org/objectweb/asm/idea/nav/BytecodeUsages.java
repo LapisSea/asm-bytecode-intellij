@@ -4,65 +4,80 @@ import com.intellij.openapi.util.TextRange;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.idea.highlight.BytecodeReference;
-import org.objectweb.asm.idea.sync.RecordingTextifier.*;
+import org.objectweb.asm.idea.sync.RecordingTextifier.LocalVariable;
+import org.objectweb.asm.idea.sync.RecordingTextifier.Method;
+import org.objectweb.asm.idea.sync.RecordingTextifier.Result;
+import org.objectweb.asm.idea.sync.RecordingTextifier.VarInfo;
+import org.objectweb.asm.idea.sync.RecordingTextifier.VarOperand;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 /**
  * Finds where something is used in one class's bytecode text.
  */
 public final class BytecodeUsages{
 	private BytecodeUsages(){ }
-
+	
 	/**
 	 * What usages are searched for.
 	 */
 	public sealed interface Symbol{
-		/** For titles: what the user would call it */
+		/**
+		 * For titles: what the user would call it
+		 */
 		String displayName();
 	}
-
+	
 	public record ClassSymbol(String internalName) implements Symbol{
 		@Override
 		public String displayName(){ return simpleName(internalName); }
 	}
-
-	/** @param descriptor null for fields */
+	
+	/**
+	 * @param descriptor null for fields
+	 */
 	public record MemberSymbol(BytecodeReference.Kind kind, String owner, String name, @Nullable String descriptor) implements Symbol{
 		@Override
 		public String displayName(){
 			return simpleName(owner) + "." + (name.equals("<init>")? simpleName(owner) : name) + (kind == BytecodeReference.Kind.METHOD? "()" : "");
 		}
 	}
-
-	/** @param offset any offset in the method, labels are per method */
+	
+	/**
+	 * @param offset any offset in the method, labels are per method
+	 */
 	public record LabelSymbol(String name, int offset) implements Symbol{
 		@Override
 		public String displayName(){ return name; }
 	}
-
-	/** @param local null without debug info, then the slot is all there is */
+	
+	/**
+	 * @param local null without debug info, then the slot is all there is
+	 */
 	public record LocalSymbol(Method method, int slot, @Nullable LocalVariable local) implements Symbol{
 		@Override
 		public String displayName(){ return local != null? local.name() : "slot " + slot; }
 	}
-
+	
 	/**
 	 * @param range       the text that refers to the symbol
 	 * @param write       whether the value is stored rather than read
 	 * @param declaration where it is declared rather than used
 	 */
 	public record Usage(TextRange range, int line, boolean write, boolean declaration){ }
-
+	
 	private static String simpleName(String internalName){
 		return internalName.substring(internalName.lastIndexOf('/') + 1).replace('$', '.');
 	}
-
+	
 	// ------------------------------------------------------------ what is at the caret
-
+	
 	/**
 	 * @param printed what the text was printed from, for local variables; null if not available
 	 */
@@ -87,9 +102,9 @@ public final class BytecodeUsages{
 		}
 		return null;
 	}
-
+	
 	// ------------------------------------------------------------ usages
-
+	
 	/**
 	 * @param sameOwner whether a member referenced through the first class is the member of the second: the same
 	 *                  class, or for searches from the source, also a subclass
@@ -107,7 +122,7 @@ public final class BytecodeUsages{
 			                                        (r.owner().equals(m.owner()) || sameOwner.test(r.owner(), m.owner())));
 		};
 	}
-
+	
 	/**
 	 * Constructors of inner classes and enums get parameters javac adds in front, which the source does not have.
 	 */
@@ -116,19 +131,19 @@ public final class BytecodeUsages{
 		if(!name.equals("<init>") || !searched.startsWith("(") || !found.startsWith("(")) return false;
 		return found.endsWith(searched.substring(1));
 	}
-
-	private static List<Usage> refs(Lines lines, java.util.function.Predicate<BytecodeReference> matches){
+	
+	private static List<Usage> refs(Lines lines, Predicate<BytecodeReference> matches){
 		List<Usage> out = new ArrayList<>();
 		for(var r : BytecodeReference.all(lines.text, BytecodeReference.declaredClass(lines.text))){
 			if(!matches.test(r)) continue;
-			int    line = lines.of(r.range().getStartOffset());
-			String l    = lines.text(line).strip();
-			boolean put = r.kind() == BytecodeReference.Kind.FIELD && (l.startsWith("PUTFIELD ") || l.startsWith("PUTSTATIC "));
+			int     line = lines.of(r.range().getStartOffset());
+			String  l    = lines.text(line).strip();
+			boolean put  = r.kind() == BytecodeReference.Kind.FIELD && (l.startsWith("PUTFIELD ") || l.startsWith("PUTSTATIC "));
 			out.add(new Usage(r.range(), line, put, r.declaration()));
 		}
 		return out;
 	}
-
+	
 	private static List<Usage> locals(Lines lines, LocalSymbol l){
 		List<Usage> out = new ArrayList<>();
 		for(var insn : l.method().insns){
@@ -148,11 +163,13 @@ public final class BytecodeUsages{
 			int    name  = line.indexOf("LOCALVARIABLE ") + "LOCALVARIABLE ".length();
 			out.add(new Usage(new TextRange(start + name, start + name + v.local().name().length()), info.textStart(), false, true));
 		}
-		out.sort(java.util.Comparator.comparingInt(u -> u.range().getStartOffset()));
+		out.sort(Comparator.comparingInt(u -> u.range().getStartOffset()));
 		return out;
 	}
-
-	/** The slot number of a load, store or IINC: the first operand */
+	
+	/**
+	 * The slot number of a load, store or IINC: the first operand
+	 */
 	private static @Nullable TextRange operandRange(Lines lines, int line){
 		int    start = lines.start(line);
 		String l     = lines.text(line);
@@ -164,12 +181,14 @@ public final class BytecodeUsages{
 		while(e<l.length() && Character.isDigit(l.charAt(e))) e++;
 		return e>i? new TextRange(start + i, start + e) : null;
 	}
-
-	/** Line starts, found once per search */
+	
+	/**
+	 * Line starts, found once per search
+	 */
 	private static final class Lines{
 		final CharSequence text;
 		final int[]        starts;
-
+		
 		Lines(CharSequence text){
 			this.text = text;
 			int n = 1;
@@ -177,31 +196,33 @@ public final class BytecodeUsages{
 			starts = new int[n];
 			for(int i = 0, l = 1; i<text.length(); i++) if(text.charAt(i) == '\n') starts[l++] = i + 1;
 		}
-
+		
 		int of(int offset){
-			int i = java.util.Arrays.binarySearch(starts, offset);
+			int i = Arrays.binarySearch(starts, offset);
 			return i>=0? i : -i - 2;
 		}
-
+		
 		int start(int line){
 			return starts[Math.min(line, starts.length - 1)];
 		}
-
+		
 		String text(int line){
 			int s = start(line), e = line + 1<starts.length? starts[line + 1] - 1 : text.length();
 			return text.subSequence(s, Math.max(s, e)).toString();
 		}
 	}
-
+	
 	// ------------------------------------------------------------ lines
-
+	
 	private static int lineOf(CharSequence text, int offset){
 		int line = 0;
 		for(int i = 0; i<offset && i<text.length(); i++) if(text.charAt(i) == '\n') line++;
 		return line;
 	}
-
-	/** The method a line belongs to, or null for lines outside methods */
+	
+	/**
+	 * The method a line belongs to, or null for lines outside methods
+	 */
 	public static @Nullable Method methodAt(@Nullable Result printed, int line){
 		if(printed == null) return null;
 		for(var m : printed.methods()){

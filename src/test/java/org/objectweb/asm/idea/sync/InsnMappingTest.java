@@ -25,16 +25,16 @@ import static org.testng.Assert.*;
  * End to end: real javac output of {@link InsnMappingFixture} against its source parsed by IntelliJ.
  */
 public class InsnMappingTest{
-
+	
 	private CodeInsightTestFixture fixture;
 	private String                 source;
 	private String                 bytecode;
 	private InsnMapping            mapping;
-
+	
 	@BeforeClass
 	public void setUp() throws Exception{
 		source = Files.readString(Path.of("src/test/java/org/objectweb/asm/idea/sync/InsnMappingFixture.java")).replace("\r", "");
-
+		
 		var printer = new RecordingTextifier();
 		try(InputStream in = InsnMappingFixture.class.getResourceAsStream("InsnMappingFixture.class")){
 			assertNotNull(in);
@@ -42,7 +42,7 @@ public class InsnMappingTest{
 		}
 		var printed = printer.print();
 		bytecode = printed.text();
-
+		
 		EdtTestUtil.runInEdtAndWait(() -> {
 			var builder = IdeaTestFixtureFactory.getFixtureFactory().createLightFixtureBuilder("insnMapping");
 			fixture = JavaTestFixtureFactory.getFixtureFactory().createCodeInsightFixture(builder.getFixture());
@@ -53,22 +53,22 @@ public class InsnMappingTest{
 		});
 		assertNotNull(mapping, "class not found in source");
 	}
-
+	
 	@AfterClass(alwaysRun = true)
 	public void tearDown() throws Exception{
 		if(fixture != null) EdtTestUtil.runInEdtAndWait(() -> fixture.tearDown());
 	}
-
+	
 	private int offsetOf(String text){
 		int i = source.indexOf(text);
 		assertTrue(i>=0, text);
 		return i;
 	}
-
+	
 	private int lineOf(int offset){
 		return (int)source.substring(0, offset).chars().filter(c -> c == '\n').count();
 	}
-
+	
 	/**
 	 * @return bytecode text highlighted for the caret at the start of the given source text
 	 */
@@ -78,14 +78,14 @@ public class InsnMappingTest{
 	
 	private String bytecodeAt(int offset, String what){
 		String sourceText = what;
-		var  ranges = mapping.bytecodeFor(offset, lineOf(offset));
+		var    ranges     = mapping.bytecodeFor(offset, lineOf(offset));
 		assertNotNull(ranges, sourceText);
 		var lines = bytecode.split("\n", -1);
 		return ranges.stream()
 		             .map(r -> String.join("\n", List.of(lines).subList(r.startLine(), r.endLine() + 1)))
 		             .collect(Collectors.joining("\n---\n"));
 	}
-
+	
 	/**
 	 * @return source text highlighted for the caret on the first bytecode line containing the given text
 	 */
@@ -100,7 +100,7 @@ public class InsnMappingTest{
 		fail("not in bytecode: " + bytecodeText);
 		return null;
 	}
-
+	
 	@Test
 	public void callInAChain(){
 		var text = bytecodeAt("filter(");
@@ -108,7 +108,7 @@ public class InsnMappingTest{
 		assertFalse(text.contains("Stream.map"), text);
 		assertFalse(text.contains("Stream.toList"), text);
 	}
-
+	
 	@Test
 	public void methodReferences(){
 		var first = bytecodeAt("Thing::foo");
@@ -117,7 +117,7 @@ public class InsnMappingTest{
 		assertFalse(first.contains("Foo.stuff"), first);
 		assertEquals(sourceAt("Stream.toList"), "toList()");
 	}
-
+	
 	@Test
 	public void lambdaBodyIsItsOwnMethod(){
 		// The call in the lambda, not the declaration in Foo
@@ -125,14 +125,14 @@ public class InsnMappingTest{
 		assertTrue(text.contains("Foo.something"), text);
 		assertFalse(text.contains("Stream."), text);
 	}
-
+	
 	@Test
 	public void bytecodeToSource(){
 		assertEquals(sourceAt("Stream.filter"), "filter(f -> f.something())");
 		assertEquals(sourceAt("Stream.map"), "map(Thing::foo)");
 		assertEquals(sourceAt("List.stream"), "stream()");
 	}
-
+	
 	@Test
 	public void localsFieldsAndOperators(){
 		assertEquals(sourceAt("IMUL"), "*");
@@ -141,7 +141,7 @@ public class InsnMappingTest{
 		var text = bytecodeAt("counter++");
 		assertTrue(text.contains("PUTFIELD") && text.contains("counter"), text);
 	}
-
+	
 	@Test
 	public void fieldInitializerInConstructor(){
 		var text = bytecodeAt("parseInt");

@@ -7,11 +7,11 @@ import com.intellij.lang.Language;
  */
 public final class BytecodeLanguage extends Language{
 	public static final BytecodeLanguage INSTANCE = new BytecodeLanguage();
-
+	
 	private BytecodeLanguage(){
 		super("ASMBytecode");
 	}
-
+	
 	@Override
 	public String getDisplayName(){
 		return "ASM Bytecode";

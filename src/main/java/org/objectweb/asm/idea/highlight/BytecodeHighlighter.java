@@ -15,7 +15,7 @@ import static com.intellij.openapi.editor.colors.TextAttributesKey.createTextAtt
  * Colors default to the closest Java equivalents, so they follow the color scheme.
  */
 public final class BytecodeHighlighter extends SyntaxHighlighterBase{
-
+	
 	public static final TextAttributesKey OPCODE      = createTextAttributesKey("ASM_BYTECODE_OPCODE", DefaultLanguageHighlighterColors.KEYWORD);
 	public static final TextAttributesKey DIRECTIVE   = createTextAttributesKey("ASM_BYTECODE_DIRECTIVE", DefaultLanguageHighlighterColors.METADATA);
 	public static final TextAttributesKey KEYWORD     = createTextAttributesKey("ASM_BYTECODE_KEYWORD", DefaultLanguageHighlighterColors.KEYWORD);
@@ -35,7 +35,7 @@ public final class BytecodeHighlighter extends SyntaxHighlighterBase{
 	public static final TextAttributesKey BRACKETS    = createTextAttributesKey("ASM_BYTECODE_BRACKETS", DefaultLanguageHighlighterColors.BRACKETS);
 	public static final TextAttributesKey BRACES      = createTextAttributesKey("ASM_BYTECODE_BRACES", DefaultLanguageHighlighterColors.BRACES);
 	public static final TextAttributesKey PUNCTUATION = createTextAttributesKey("ASM_BYTECODE_PUNCTUATION", DefaultLanguageHighlighterColors.OPERATION_SIGN);
-
+	
 	private static final Map<IElementType, TextAttributesKey> KEYS = Map.ofEntries(
 		Map.entry(BytecodeTokens.OPCODE, OPCODE),
 		Map.entry(BytecodeTokens.DIRECTIVE, DIRECTIVE),
@@ -57,12 +57,12 @@ public final class BytecodeHighlighter extends SyntaxHighlighterBase{
 		Map.entry(BytecodeTokens.BRACES, BRACES),
 		Map.entry(BytecodeTokens.PUNCTUATION, PUNCTUATION)
 	);
-
+	
 	@Override
 	public @NotNull Lexer getHighlightingLexer(){
 		return new BytecodeLexer();
 	}
-
+	
 	@Override
 	public TextAttributesKey @NotNull [] getTokenHighlights(IElementType tokenType){
 		return pack(KEYS.get(tokenType));

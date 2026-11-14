@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntUnaryOperator;
 import java.util.regex.Pattern;
 
 /**
@@ -15,42 +16,42 @@ import java.util.regex.Pattern;
  * {@code LINENUMBER} entries in the bytecode text are 1-based.
  */
 public final class LineMapping{
-
+	
 	public static final LineMapping EMPTY = new LineMapping(new int[0], Map.of());
-
+	
 	/**
 	 * An inclusive range of lines in the bytecode text.
 	 */
 	public record Range(int startLine, int endLine){ }
-
+	
 	private static final Pattern LABEL = Pattern.compile("L\\d+");
-
-	private final int[]                    bytecodeToSource;
+	
+	private final int[]                     bytecodeToSource;
 	private final Map<Integer, List<Range>> sourceToBytecode;
-
+	
 	private LineMapping(int[] bytecodeToSource, Map<Integer, List<Range>> sourceToBytecode){
 		this.bytecodeToSource = bytecodeToSource;
 		this.sourceToBytecode = sourceToBytecode;
 	}
-
+	
 	/**
 	 * Builds the mapping from the text produced by a {@link org.objectweb.asm.util.TraceClassVisitor} with the
 	 * default Textifier. A LineNumberTable entry applies from its label until the next entry, so every code line
 	 * inherits the most recent {@code LINENUMBER} of its method.
 	 */
 	public static LineMapping parse(String bytecodeText){
-		return parse(bytecodeText, java.util.function.IntUnaryOperator.identity());
+		return parse(bytecodeText, IntUnaryOperator.identity());
 	}
-
+	
 	/**
 	 * @param lineMap translates the class file's line numbers (0-based) to lines of the document shown as the source,
 	 *                -1 for lines it does not have
 	 */
-	public static LineMapping parse(String bytecodeText, java.util.function.IntUnaryOperator lineMap){
+	public static LineMapping parse(String bytecodeText, IntUnaryOperator lineMap){
 		String[] lines   = bytecodeText.split("\n", -1);
 		int[]    mapping = new int[lines.length];
 		Arrays.fill(mapping, -1);
-
+		
 		int current = -1;
 		for(int i = 0; i<lines.length; i++){
 			String line = lines[i];
@@ -61,7 +62,7 @@ public final class LineMapping{
 				continue;
 			}
 			String trimmed = line.strip();
-
+			
 			if(trimmed.startsWith("LINENUMBER ")){
 				int sourceLine = parseLineNumber(trimmed);
 				if(sourceLine>=0) sourceLine = lineMap.applyAsInt(sourceLine);
@@ -84,7 +85,7 @@ public final class LineMapping{
 			}
 			mapping[i] = current;
 		}
-
+		
 		Map<Integer, List<Range>> reverse = new HashMap<>();
 		int                       i       = 0;
 		while(i<mapping.length){
@@ -98,14 +99,14 @@ public final class LineMapping{
 			reverse.computeIfAbsent(src, k -> new ArrayList<>()).add(new Range(start, i));
 			i++;
 		}
-
+		
 		return new LineMapping(mapping, reverse);
 	}
-
+	
 	private static boolean isLabel(String line){
 		return LABEL.matcher(line.strip()).matches();
 	}
-
+	
 	private static int parseLineNumber(String trimmed){
 		// Format: "LINENUMBER <line> <label>"
 		String[] parts = trimmed.split("\\s+");
@@ -115,7 +116,7 @@ public final class LineMapping{
 			return -1;
 		}
 	}
-
+	
 	/**
 	 * @return the 0-based source line for a 0-based bytecode text line, or -1 if it does not map to source
 	 */
@@ -123,14 +124,14 @@ public final class LineMapping{
 		if(bytecodeLine<0 || bytecodeLine>=bytecodeToSource.length) return -1;
 		return bytecodeToSource[bytecodeLine];
 	}
-
+	
 	/**
 	 * @return the bytecode text ranges generated from a 0-based source line, in document order
 	 */
 	public List<Range> bytecodeRangesFor(int sourceLine){
 		return sourceToBytecode.getOrDefault(sourceLine, List.of());
 	}
-
+	
 	public boolean isEmpty(){
 		return sourceToBytecode.isEmpty();
 	}

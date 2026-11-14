@@ -57,7 +57,7 @@ import java.awt.BorderLayout;
  * @author Thiakil (December 2017)
  */
 public class ACodeView extends SimpleToolWindowPanel implements Disposable{
-	protected final Project project;
+	protected final Project  project;
 	private final   FileType fileType;
 	
 	
@@ -65,8 +65,8 @@ public class ACodeView extends SimpleToolWindowPanel implements Disposable{
 	protected Document           document;
 	protected DefaultActionGroup toolbarActions;
 	// used for diff view
-	private   String      previousCode;
-	private   VirtualFile previousFile;
+	private   String             previousCode;
+	private   VirtualFile        previousFile;
 	
 	public ACodeView(final Project project, final String fileExtension){
 		this(project, FileTypeManager.getInstance().getFileTypeByExtension(fileExtension));

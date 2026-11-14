@@ -7,39 +7,44 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.IdeActions;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.ScrollType;
 import com.intellij.openapi.editor.colors.EditorColors;
-import com.intellij.openapi.editor.event.*;
+import com.intellij.openapi.editor.event.CaretEvent;
+import com.intellij.openapi.editor.event.CaretListener;
+import com.intellij.openapi.editor.event.EditorMouseEvent;
+import com.intellij.openapi.editor.event.EditorMouseListener;
+import com.intellij.openapi.editor.event.EditorMouseMotionListener;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.editor.markup.HighlighterLayer;
 import com.intellij.openapi.editor.markup.HighlighterTargetArea;
 import com.intellij.openapi.editor.markup.RangeHighlighter;
-import com.intellij.openapi.ui.popup.JBPopupFactory;
-import com.intellij.openapi.wm.IdeFocusManager;
-import com.intellij.ui.ColoredListCellRenderer;
-import com.intellij.ui.SimpleTextAttributes;
-import javax.swing.JList;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.popup.JBPopupFactory;
+import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.TextRange;
+import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.pom.Navigatable;
 import com.intellij.psi.PsiElement;
+import com.intellij.ui.ColoredListCellRenderer;
+import com.intellij.ui.SimpleTextAttributes;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.idea.highlight.BytecodeReference;
 import org.objectweb.asm.idea.sync.RecordingTextifier;
 
+import javax.swing.*;
 import java.awt.Cursor;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 
 /**
@@ -48,15 +53,15 @@ import java.util.function.Function;
  * of methods.
  */
 public final class BytecodeEditorSupport implements Disposable{
-
-	private final Project                          project;
-	private final Editor                           editor;
-	private final Function<String, Navigatable>    lambdaSource;
-	private final List<RangeHighlighter>           usageHighlights = new ArrayList<>();
-	private @Nullable RecordingTextifier.Result    printed;
-	private @Nullable RangeHighlighter             link;
-	private final KeyAdapter                       keyListener;
-
+	
+	private final     Project                       project;
+	private final     Editor                        editor;
+	private final     Function<String, Navigatable> lambdaSource;
+	private final     List<RangeHighlighter>        usageHighlights = new ArrayList<>();
+	private @Nullable RecordingTextifier.Result     printed;
+	private @Nullable RangeHighlighter              link;
+	private final     KeyAdapter                    keyListener;
+	
 	/**
 	 * @param lambdaSource finds the source of a lambda by its synthetic method name, or returns null
 	 */
@@ -64,7 +69,7 @@ public final class BytecodeEditorSupport implements Disposable{
 		this.project = project;
 		this.editor = editor;
 		this.lambdaSource = lambdaSource;
-
+		
 		editor.addEditorMouseMotionListener(new EditorMouseMotionListener(){
 			@Override
 			public void mouseMoved(@NotNull EditorMouseEvent e){
@@ -80,7 +85,7 @@ public final class BytecodeEditorSupport implements Disposable{
 				clearLink();
 				navigate(e.getOffset());
 			}
-
+			
 			@Override
 			public void mouseExited(@NotNull EditorMouseEvent e){
 				clearLink();
@@ -99,21 +104,21 @@ public final class BytecodeEditorSupport implements Disposable{
 				highlightUsages();
 			}
 		}, this);
-
+		
 		// Go to Declaration (Ctrl+B and whatever the keymap says) works on the caret
 		new DumbAwareAction(){
 			@Override
 			public void actionPerformed(@NotNull AnActionEvent e){
 				navigate(editor.getCaretModel().getOffset());
 			}
-
+			
 			@Override
 			public @NotNull ActionUpdateThread getActionUpdateThread(){
 				return ActionUpdateThread.EDT;
 			}
 		}.registerCustomShortcutSet(ActionManager.getInstance().getAction(IdeActions.ACTION_GOTO_DECLARATION).getShortcutSet(),
 		                            editor.getContentComponent(), this);
-
+		
 		// Find Usages and Show Usages (Alt+F7, Ctrl+Alt+F7) list usages in this class
 		for(String id : List.of(IdeActions.ACTION_FIND_USAGES, "ShowUsages")){
 			var action = ActionManager.getInstance().getAction(id);
@@ -123,7 +128,7 @@ public final class BytecodeEditorSupport implements Disposable{
 				public void actionPerformed(@NotNull AnActionEvent e){
 					showUsagesAtCaret();
 				}
-
+				
 				@Override
 				public @NotNull ActionUpdateThread getActionUpdateThread(){
 					return ActionUpdateThread.EDT;
@@ -131,18 +136,18 @@ public final class BytecodeEditorSupport implements Disposable{
 			}.registerCustomShortcutSet(action.getShortcutSet(), editor.getContentComponent(), this);
 		}
 	}
-
+	
 	private static boolean isLinkModifier(MouseEvent e){
 		return SystemInfo.isMac? e.isMetaDown() : e.isControlDown();
 	}
-
+	
 	// ------------------------------------------------------------ navigation
-
+	
 	private @Nullable BytecodeReference referenceAt(int offset){
 		var text = editor.getDocument().getImmutableCharSequence();
 		return BytecodeReference.at(text, offset, BytecodeReference.declaredClass(text));
 	}
-
+	
 	private void navigate(int offset){
 		var ref = referenceAt(offset);
 		if(ref == null) return;
@@ -156,7 +161,7 @@ public final class BytecodeEditorSupport implements Disposable{
 			                                                (ref.name() == null? "" : "." + ref.name()));
 		}
 	}
-
+	
 	private @Nullable Navigatable target(BytecodeReference ref, int offset){
 		if(ref.kind() == BytecodeReference.Kind.LABEL){
 			var def = BytecodeReference.labelDefinition(editor.getDocument().getImmutableCharSequence(), offset, ref.name());
@@ -167,10 +172,10 @@ public final class BytecodeEditorSupport implements Disposable{
 					editor.getCaretModel().moveToOffset(def.getStartOffset());
 					editor.getScrollingModel().scrollToCaret(ScrollType.MAKE_VISIBLE);
 				}
-
+				
 				@Override
 				public boolean canNavigate(){ return true; }
-
+				
 				@Override
 				public boolean canNavigateToSource(){ return false; }
 			};
@@ -187,42 +192,45 @@ public final class BytecodeEditorSupport implements Disposable{
 			return nav instanceof Navigatable n && n.canNavigate()? n : e instanceof Navigatable n && n.canNavigate()? n : null;
 		});
 	}
-
+	
 	// ------------------------------------------------------------ Ctrl+hover link
-
+	
 	private void updateLink(EditorMouseEvent e){
 		if(!isLinkModifier(e.getMouseEvent()) || !e.isOverText()){
 			clearLink();
 			return;
 		}
-		int  offset = e.getOffset();
-		var  ref    = referenceAt(offset);
+		int offset = e.getOffset();
+		var ref    = referenceAt(offset);
 		if(ref == null){
 			clearLink();
 			return;
 		}
-		if(link != null && link.isValid() && link.getStartOffset() == ref.range().getStartOffset() && link.getEndOffset() == ref.range().getEndOffset()) return;
+		if(link != null && link.isValid() && link.getStartOffset() == ref.range().getStartOffset() && link.getEndOffset() == ref.range().getEndOffset())
+			return;
 		clearLink();
 		if(target(ref, offset) == null) return;
 		link = editor.getMarkupModel().addRangeHighlighter(EditorColors.REFERENCE_HYPERLINK_COLOR, ref.range().getStartOffset(), ref.range().getEndOffset(),
 		                                                   HighlighterLayer.HYPERLINK, HighlighterTargetArea.EXACT_RANGE);
 		if(editor instanceof EditorEx ex) ex.setCustomCursor(this, Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 	}
-
+	
 	private void clearLink(){
 		if(link == null) return;
 		editor.getMarkupModel().removeHighlighter(link);
 		link = null;
 		if(editor instanceof EditorEx ex) ex.setCustomCursor(this, null);
 	}
-
+	
 	// ------------------------------------------------------------ usages
-
+	
 	private @Nullable BytecodeUsages.Symbol symbolAtCaret(){
 		return BytecodeUsages.at(editor.getDocument().getImmutableCharSequence(), printed, editor.getCaretModel().getOffset());
 	}
-
-	/** Highlights the other usages of what is under the caret, writes differently from reads */
+	
+	/**
+	 * Highlights the other usages of what is under the caret, writes differently from reads
+	 */
 	private void highlightUsages(){
 		for(var h : usageHighlights) editor.getMarkupModel().removeHighlighter(h);
 		usageHighlights.clear();
@@ -236,7 +244,7 @@ public final class BytecodeEditorSupport implements Disposable{
 			                                                                HighlighterLayer.SELECTION - 1, HighlighterTargetArea.EXACT_RANGE));
 		}
 	}
-
+	
 	private void showUsagesAtCaret(){
 		var symbol = symbolAtCaret();
 		if(symbol == null){
@@ -245,14 +253,14 @@ public final class BytecodeEditorSupport implements Disposable{
 		}
 		showUsages(symbol, String::equals, null);
 	}
-
+	
 	/**
 	 * Lists the usages in a popup over the bytecode, picking one goes there.
 	 *
 	 * @param sameOwner see {@link BytecodeUsages#find}
 	 * @param from      where the search was started, for the message if there are none; null for the bytecode
 	 */
-	public void showUsages(BytecodeUsages.Symbol symbol, java.util.function.BiPredicate<String, String> sameOwner, @Nullable Editor from){
+	public void showUsages(BytecodeUsages.Symbol symbol, BiPredicate<String, String> sameOwner, @Nullable Editor from){
 		var    text   = editor.getDocument().getImmutableCharSequence();
 		var    usages = BytecodeUsages.find(text, symbol, sameOwner);
 		String cls    = BytecodeReference.declaredClass(text);
@@ -275,9 +283,9 @@ public final class BytecodeEditorSupport implements Disposable{
 		              .setRenderer(new ColoredListCellRenderer<Item>(){
 			              @Override
 			              protected void customizeCellRenderer(@NotNull JList<? extends Item> list, Item item, int index, boolean selected, boolean hasFocus){
-				              String line = item.line;
-				              int    from = item.usage.range().getStartOffset() - item.lineStart, to = item.usage.range().getEndOffset() - item.lineStart;
-				              int    lead = 0;
+				              String                                                           line                                                            = item.line;
+				              int from = item.usage.range().getStartOffset() - item.lineStart, to = item.usage.range().getEndOffset() - item.lineStart;
+				              int                                                              lead                                                            = 0;
 				              while(lead<line.length() && line.charAt(lead) == ' ') lead++;
 				              append(String.valueOf(item.usage.line() + 1), SimpleTextAttributes.GRAYED_ATTRIBUTES);
 				              append("  ");
@@ -297,9 +305,9 @@ public final class BytecodeEditorSupport implements Disposable{
 		              .createPopup()
 		              .showInBestPositionFor(editor);
 	}
-
+	
 	// ------------------------------------------------------------ folding
-
+	
 	/**
 	 * Replaces the fold regions after the text changed: method bodies, and multi-line instructions such as
 	 * invokedynamic with its bootstrap arguments.
@@ -325,7 +333,7 @@ public final class BytecodeEditorSupport implements Disposable{
 				}
 				if(last<0 || first<1 || last>=lines) continue;
 				fold(doc.getLineEndOffset(first - 1), doc.getLineEndOffset(last), " ...");
-
+				
 				for(var insn : m.insns){
 					boolean multiLine = insn.opcode() == Opcodes.INVOKEDYNAMIC || insn.opcode() == Opcodes.TABLESWITCH || insn.opcode() == Opcodes.LOOKUPSWITCH;
 					if(!multiLine || insn.textEnd()<=insn.textStart() || insn.textEnd()>=lines) continue;
@@ -337,12 +345,12 @@ public final class BytecodeEditorSupport implements Disposable{
 			}
 		});
 	}
-
+	
 	private void fold(int start, int end, String placeholder){
 		if(end - start<2) return;
 		editor.getFoldingModel().addFoldRegion(start, end, placeholder);
 	}
-
+	
 	@Override
 	public void dispose(){
 		editor.getContentComponent().removeKeyListener(keyListener);

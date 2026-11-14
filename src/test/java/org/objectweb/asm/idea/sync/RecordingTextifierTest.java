@@ -12,39 +12,42 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.List;
 
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
 
 public class RecordingTextifierTest{
-
+	
 	private static ClassReader fixture() throws IOException{
 		try(InputStream in = Fixture.class.getResourceAsStream("RecordingTextifierTest$Fixture.class")){
 			assertNotNull(in);
 			return new ClassReader(in);
 		}
 	}
-
+	
 	private static RecordingTextifier.Result record(int flags) throws IOException{
 		var t = new RecordingTextifier();
 		fixture().accept(new TraceClassVisitor(null, t, null), flags);
 		return t.print();
 	}
-
+	
 	private static RecordingTextifier.Method method(RecordingTextifier.Result r, String name){
 		return r.methods().stream().filter(m -> m.name.equals(name)).findFirst().orElseThrow();
 	}
-
+	
 	@Test
 	void decompiledLines() throws IOException{
 		var plain  = new RecordingTextifier();
 		var mapped = new RecordingTextifier(l -> l + 100);
-		fixture().accept(new org.objectweb.asm.util.TraceClassVisitor(null, plain, null), 0);
-		fixture().accept(new org.objectweb.asm.util.TraceClassVisitor(null, mapped, null), 0);
+		fixture().accept(new TraceClassVisitor(null, plain, null), 0);
+		fixture().accept(new TraceClassVisitor(null, mapped, null), 0);
 		var a = method(plain.print(), "sum").insns;
 		var b = method(mapped.print(), "sum").insns;
 		assertEquals(a.size(), b.size());
 		for(int i = 0; i<a.size(); i++) assertEquals(b.get(i).line(), a.get(i).line() + 100);
 	}
-
+	
 	@Test
 	public void sameTextAsPlainTextifier() throws IOException{
 		for(int flags : new int[]{0, ClassReader.SKIP_DEBUG, ClassReader.SKIP_FRAMES, ClassReader.EXPAND_FRAMES}){
@@ -53,7 +56,7 @@ public class RecordingTextifierTest{
 			assertEquals(record(flags).text(), sw.toString(), "flags " + flags);
 		}
 	}
-
+	
 	@Test
 	public void instructionsPointAtTheirText() throws IOException{
 		var r     = record(0);
@@ -69,7 +72,7 @@ public class RecordingTextifierTest{
 		}
 		assertTrue(count>20);
 	}
-
+	
 	@Test
 	public void multiLineInvokeDynamic() throws IOException{
 		var indys = method(record(0), "run").insns.stream().filter(i -> i.opcode() == Opcodes.INVOKEDYNAMIC).toList();
@@ -80,7 +83,7 @@ public class RecordingTextifierTest{
 		assertTrue(indys.get(1).isLambdaImpl(), indys.get(1).name());
 		assertEquals(indys.get(2).name(), "stuff");
 	}
-
+	
 	@Test
 	public void localVariableNames() throws IOException{
 		var vars = method(record(0), "sum").insns.stream()
@@ -90,7 +93,7 @@ public class RecordingTextifierTest{
 		// int c = a + b; return c*2;
 		assertEquals(vars, List.of("a", "b", "c", "c"));
 	}
-
+	
 	@Test
 	public void sourceLines() throws IOException{
 		var insns = method(record(0), "sum").insns;
@@ -102,20 +105,20 @@ public class RecordingTextifierTest{
 			assertNull(i.name());
 		}
 	}
-
+	
 	@SuppressWarnings("unused")
 	static class Fixture{
 		record Foo(String stuff){
 			boolean something(){ return !stuff.isEmpty(); }
 		}
-
+		
 		record Thing(Foo foo){ }
-
+		
 		static int sum(int a, int b){
 			int c = a + b;
 			return c*2;
 		}
-
+		
 		static List<String> run(List<Thing> things){
 			return things.stream().map(Thing::foo).filter(f -> f.something()).map(Foo::stuff).toList();
 		}

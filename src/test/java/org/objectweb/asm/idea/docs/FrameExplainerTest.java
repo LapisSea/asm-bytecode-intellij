@@ -11,10 +11,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertTrue;
 
 public class FrameExplainerTest{
-
+	
 	private static RecordingTextifier.Result record(int flags) throws IOException{
 		try(InputStream in = FrameExplainerTest.class.getResourceAsStream("FrameExplainerTest$Fixture.class")){
 			assertNotNull(in);
@@ -23,15 +25,15 @@ public class FrameExplainerTest{
 			return t.print();
 		}
 	}
-
+	
 	private static List<Frame> frames(RecordingTextifier.Result r, String method){
 		return r.methods().stream().filter(m -> m.name.equals(method)).findFirst().orElseThrow().frames;
 	}
-
+	
 	private static String text(Frame f){
 		return InsnExplainer.explainFrame(f).replaceAll("<[^>]+>", " ").replace("&lt;", "<").replace("&gt;", ">").replaceAll("\\s+", " ");
 	}
-
+	
 	@Test
 	public void framesPointAtTheirText() throws IOException{
 		var r     = record(0);
@@ -46,7 +48,7 @@ public class FrameExplainerTest{
 		}
 		assertTrue(count>3);
 	}
-
+	
 	@Test
 	public void compressedFramesAreExpanded() throws IOException{
 		// Compressed frames, put together, must equal what ASM computes when asked to expand them
@@ -62,10 +64,10 @@ public class FrameExplainerTest{
 			}
 		}
 	}
-
+	
 	@Test
 	public void appendAndChop() throws IOException{
-		var fs   = frames(record(0), "loop");
+		var fs    = frames(record(0), "loop");
 		var kinds = fs.stream().map(Frame::kind).toList();
 		assertTrue(kinds.contains(Opcodes.F_APPEND), kinds.toString());
 		assertTrue(kinds.contains(Opcodes.F_CHOP), kinds.toString());
@@ -77,7 +79,7 @@ public class FrameExplainerTest{
 		assertTrue(text.contains("slot 2: I int, or boolean, byte, char, short i"), text);
 		assertTrue(text.contains("Operand stack: empty."), text);
 	}
-
+	
 	@Test
 	public void wideLocalsTakeTwoSlots() throws IOException{
 		var f    = frames(record(0), "wide").getFirst();
@@ -85,22 +87,22 @@ public class FrameExplainerTest{
 		assertTrue(text.contains("slot 0–1: J long, 2 slots a"), text);
 		assertTrue(text.contains("slot 2: I"), text);
 	}
-
+	
 	@Test
 	public void caughtException() throws IOException{
-		var f = frames(record(0), "caught").stream().filter(x -> x.kind() == Opcodes.F_SAME1).findFirst().orElseThrow();
+		var f    = frames(record(0), "caught").stream().filter(x -> x.kind() == Opcodes.F_SAME1).findFirst().orElseThrow();
 		var text = text(f);
 		assertTrue(text.contains("typically the caught exception"), text);
 		assertTrue(text.contains("Operand stack (bottom first): RuntimeException"), text);
 	}
-
+	
 	@Test
 	public void uninitializedObject() throws IOException{
-		var f = frames(record(0), "uninitialized").stream().filter(x -> !x.stack().isEmpty()).findFirst().orElseThrow();
+		var f    = frames(record(0), "uninitialized").stream().filter(x -> !x.stack().isEmpty()).findFirst().orElseThrow();
 		var text = text(f);
 		assertTrue(text.matches(".*a new StringBuilder created by NEW at L\\d+ , whose constructor has not run yet.*"), text);
 	}
-
+	
 	@Test
 	public void unusableSlots(){
 		var method = record0Method();
@@ -111,7 +113,7 @@ public class FrameExplainerTest{
 		assertTrue(text.contains("slot 1: T unusable"), text);
 		assertTrue(text.contains("T (top) marks a slot with nothing usable"), text);
 	}
-
+	
 	private static RecordingTextifier.Method record0Method(){
 		try{
 			return record(0).methods().getFirst();
@@ -119,7 +121,7 @@ public class FrameExplainerTest{
 			throw new RuntimeException(e);
 		}
 	}
-
+	
 	@SuppressWarnings("unused")
 	static class Fixture{
 		static int loop(int n){
@@ -129,12 +131,12 @@ public class FrameExplainerTest{
 			}
 			return sum;
 		}
-
+		
 		static long wide(long a, int b){
 			if(b>0) a++;
 			return a;
 		}
-
+		
 		static String caught(Runnable r){
 			try{
 				r.run();
@@ -143,7 +145,7 @@ public class FrameExplainerTest{
 			}
 			return null;
 		}
-
+		
 		static StringBuilder uninitialized(boolean b){
 			return new StringBuilder(b? "a" : "b");
 		}

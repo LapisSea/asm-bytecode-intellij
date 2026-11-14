@@ -2,19 +2,24 @@ package org.objectweb.asm.idea.highlight;
 
 import org.testng.annotations.Test;
 
-import static org.objectweb.asm.idea.highlight.BytecodeReference.Kind.*;
-import static org.testng.Assert.*;
+import static org.objectweb.asm.idea.highlight.BytecodeReference.Kind.CLASS;
+import static org.objectweb.asm.idea.highlight.BytecodeReference.Kind.FIELD;
+import static org.objectweb.asm.idea.highlight.BytecodeReference.Kind.LABEL;
+import static org.objectweb.asm.idea.highlight.BytecodeReference.Kind.METHOD;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
 
 public class BytecodeReferenceTest{
-
+	
 	private static final String TEXT = """
 		// class version 69.0 (69)
 		// access flags 0x21
 		public class com/example/Greeter extends java/lang/Object {
-
+		
 		  // access flags 0x2
 		  private I count
-
+		
 		  // access flags 0x1
 		  public greet(Ljava/lang/String;I)Ljava/lang/String;
 		   L0
@@ -32,7 +37,7 @@ public class BytecodeReferenceTest{
 		    ARETURN
 		    MAXSTACK = 2
 		    MAXLOCALS = 2
-
+		
 		  // access flags 0x1
 		  public other()V
 		   L0
@@ -41,22 +46,22 @@ public class BytecodeReferenceTest{
 		    RETURN
 		}
 		""";
-
+	
 	private static int at(String marker, int delta){
 		int i = TEXT.indexOf(marker);
 		assertTrue(i>=0, marker);
 		return i + delta;
 	}
-
+	
 	private static BytecodeReference ref(String marker, int delta){
 		return BytecodeReference.at(TEXT, at(marker, delta), "com/example/Greeter");
 	}
-
+	
 	@Test
 	public void declaredClass(){
 		assertEquals(BytecodeReference.declaredClass(TEXT), "com/example/Greeter");
 	}
-
+	
 	@Test
 	public void classes(){
 		// On the package part or the name, the whole name is the link
@@ -67,7 +72,7 @@ public class BytecodeReferenceTest{
 		assertEquals(ref("java/lang/Object {", 12).owner(), "java/lang/Object");
 		assertEquals(ref("NEW Foo", 5).owner(), "Foo");
 	}
-
+	
 	@Test
 	public void descriptors(){
 		// (Ljava/lang/Object;Ljava/lang/String;): each descriptor on its own, without L and ;
@@ -77,7 +82,7 @@ public class BytecodeReferenceTest{
 		var str = ref("(Ljava/lang/Object;Ljava/lang/String;)", 30);
 		assertEquals(str.owner(), "java/lang/String");
 	}
-
+	
 	@Test
 	public void members(){
 		var m = ref("requireNonNull", 3);
@@ -86,11 +91,11 @@ public class BytecodeReferenceTest{
 		assertEquals(m.name(), "requireNonNull");
 		assertEquals(m.descriptor(), "(Ljava/lang/Object;Ljava/lang/String;)Ljava/lang/Object;");
 		assertEquals(m.range().substring(TEXT), "requireNonNull");
-
+		
 		var bsm = ref("metafactory", 0);
 		assertEquals(bsm.owner(), "java/lang/invoke/LambdaMetafactory");
 		assertEquals(bsm.descriptor(), "(Ljava/lang/invoke/MethodHandles$Lookup;)Ljava/lang/invoke/CallSite;");
-
+		
 		var f = ref("Greeter.count", 9);
 		assertEquals(f.kind(), FIELD);
 		assertEquals(f.owner(), "com/example/Greeter");
@@ -98,7 +103,7 @@ public class BytecodeReferenceTest{
 		// Right after the word still counts
 		assertEquals(ref("Greeter.count", 13).name(), "count");
 	}
-
+	
 	@Test
 	public void declarationsBelongToTheClass(){
 		var m = ref("greet(", 1);
@@ -110,14 +115,14 @@ public class BytecodeReferenceTest{
 		assertEquals(f.name(), "count");
 		assertNull(BytecodeReference.at(TEXT, at("greet(", 1), null), "unknown class");
 	}
-
+	
 	@Test
 	public void nothingToNavigate(){
 		assertNull(ref("INVOKEDYNAMIC get", 15), "an invokedynamic name is not a method of any class");
 		assertNull(ref("ALOAD 0", 1));
 		assertNull(ref("// access flags 0x21", 5));
 	}
-
+	
 	@Test
 	public void labels(){
 		var r = ref("IFLE L1", 5);

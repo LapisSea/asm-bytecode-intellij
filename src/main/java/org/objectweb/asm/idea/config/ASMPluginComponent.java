@@ -49,10 +49,10 @@ public class ASMPluginComponent implements PersistentStateComponent<Element>{
 	private boolean         skipDebug;
 	private boolean         skipCode;
 	private boolean         expandFrames;
-	private boolean         followEditor = true;
+	private boolean         followEditor      = true;
 	private boolean         javaSyntaxMapping = true;
-	private boolean         instructionDocs = true;
-	private GroovyCodeStyle codeStyle = GroovyCodeStyle.LEGACY;
+	private boolean         instructionDocs   = true;
+	private GroovyCodeStyle codeStyle         = GroovyCodeStyle.LEGACY;
 	
 	public ASMPluginComponent(final Project project){
 	}

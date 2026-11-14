@@ -14,7 +14,7 @@ import org.objectweb.asm.idea.highlight.BytecodeReference;
  */
 public final class DeclarationResolver{
 	private DeclarationResolver(){ }
-
+	
 	/**
 	 * Must be called in a read action, in smart mode.
 	 *
@@ -39,7 +39,7 @@ public final class DeclarationResolver{
 		// No exact match, e.g. constructors with parameters javac adds: the first one with the name is close enough
 		return candidates.length>0? candidates[0] : cls;
 	}
-
+	
 	private static @Nullable String signature(PsiMethod m){
 		try{
 			return ClassUtil.getAsmMethodSignature(m);

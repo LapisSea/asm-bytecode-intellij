@@ -16,16 +16,16 @@ import java.util.List;
 import static org.testng.Assert.*;
 
 public class JvmSpecTest{
-
+	
 	private static final String BASE = "https://example.org/jvms/";
-
+	
 	private static String sample() throws IOException{
 		try(InputStream in = JvmSpecTest.class.getResourceAsStream("jvms-sample.html")){
 			assertNotNull(in);
 			return new String(in.readAllBytes(), StandardCharsets.UTF_8);
 		}
 	}
-
+	
 	@Test
 	public void splitsInstructions() throws IOException{
 		var spec  = JvmSpec.parse(sample(), BASE);
@@ -36,7 +36,7 @@ public class JvmSpecTest{
 		assertEquals(List.copyOf(aload.sections().keySet()), List.of("Operation", "Forms", "Description"));
 		assertEquals(JvmSpec.text(aload.sections().get("Operation")).strip(), "Load a thing");
 	}
-
+	
 	@Test
 	public void familiesAreFoundByEachOpcode() throws IOException{
 		var spec = JvmSpec.parse(sample(), BASE);
@@ -44,7 +44,7 @@ public class JvmSpecTest{
 		assertEquals(spec.get(Opcodes.IFEQ).title(), "if<cond>");
 		assertEquals(spec.size(), 3);
 	}
-
+	
 	@Test
 	public void linksAreAbsolute() throws IOException{
 		var desc = JvmSpec.parse(sample(), BASE).get(Opcodes.ALOAD).sections().get("Description");
@@ -52,12 +52,12 @@ public class JvmSpecTest{
 		assertTrue(desc.contains("href=\"" + BASE + "jvms-6.html#jvms-6.5.wide\""), desc);
 		assertFalse(desc.contains("titlepage"), desc);
 	}
-
+	
 	@Test
 	public void garbageIsEmpty(){
 		assertTrue(JvmSpec.parse("<html>not the spec</html>", BASE).isEmpty());
 	}
-
+	
 	/**
 	 * Against the real page, when given one: JVMS_HTML=path/to/jvms-6.html
 	 */

@@ -10,7 +10,13 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Computable;
-import com.intellij.psi.*;
+import com.intellij.psi.PsiClass;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiField;
+import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.PsiManager;
+import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiTypeParameter;
 import com.intellij.psi.util.ClassUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -25,21 +31,21 @@ import java.util.function.BiPredicate;
  * From a method, field or class in Java source: where the bytecode shown uses it.
  */
 public final class FindUsagesInBytecodeAction extends AnAction{
-
+	
 	@Override
 	public @NotNull ActionUpdateThread getActionUpdateThread(){
 		return ActionUpdateThread.BGT;
 	}
-
+	
 	@Override
 	public void update(@NotNull AnActionEvent e){
-		var editor = e.getData(CommonDataKeys.EDITOR);
-		var file   = e.getData(CommonDataKeys.PSI_FILE);
+		var     editor    = e.getData(CommonDataKeys.EDITOR);
+		var     file      = e.getData(CommonDataKeys.PSI_FILE);
 		boolean available = editor != null && file instanceof PsiJavaFile && !DumbService.isDumb(file.getProject());
 		e.getPresentation().setEnabledAndVisible(available);
 		if(available) e.getPresentation().setEnabled(symbol(target(editor)) != null);
 	}
-
+	
 	@Override
 	public void actionPerformed(@NotNull AnActionEvent e){
 		var editor  = e.getData(CommonDataKeys.EDITOR);
@@ -50,12 +56,12 @@ public final class FindUsagesInBytecodeAction extends AnAction{
 		if(symbol == null) return;
 		BytecodeOutline.getInstance(project).showUsages(symbol, sameOwner(project), editor);
 	}
-
+	
 	private static @Nullable PsiElement target(Editor editor){
 		var util = TargetElementUtil.getInstance();
 		return TargetElementUtil.findTargetElement(editor, util.getAllAccepted());
 	}
-
+	
 	static @Nullable BytecodeUsages.Symbol symbol(@Nullable PsiElement e){
 		return switch(e){
 			case PsiMethod m -> {
@@ -80,12 +86,12 @@ public final class FindUsagesInBytecodeAction extends AnAction{
 			case null, default -> null;
 		};
 	}
-
+	
 	private static @Nullable String internalName(@Nullable PsiClass c){
 		String jvm = c == null? null : OutlineLoader.getJVMClassName(c);
 		return jvm == null? null : jvm.replace('.', '/');
 	}
-
+	
 	/**
 	 * A call through a subclass is compiled with the subclass as the owner, but it is still a use of the member.
 	 */

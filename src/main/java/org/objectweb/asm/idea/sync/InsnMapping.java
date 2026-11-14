@@ -7,6 +7,7 @@ import com.intellij.psi.util.ClassUtil;
 import com.intellij.psi.util.PsiTreeUtil;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.idea.OutlineLoader;
 import org.objectweb.asm.idea.sync.RecordingTextifier.Insn;
 import org.objectweb.asm.idea.sync.RecordingTextifier.Method;
@@ -14,7 +15,15 @@ import org.objectweb.asm.idea.sync.SourceAnchors.Anchor;
 import org.objectweb.asm.idea.sync.SourceAnchors.Kind;
 import org.objectweb.asm.idea.sync.SourceAnchors.Mode;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import static org.objectweb.asm.Opcodes.*;
 
@@ -28,14 +37,14 @@ import static org.objectweb.asm.Opcodes.*;
  * fall back to whole line matching.
  */
 public final class InsnMapping{
-
-	private final long                           sourceStamp;
-	private final Insn[]                         byTextLine;
-	private final Map<Insn, Anchor>              anchors;
-	private final Map<TextRange, List<Insn>>     byRange;
-	private final Map<Method, TextRange>         lambdaBodies;
-	private final List<Insn>                     all;
-
+	
+	private final long                       sourceStamp;
+	private final Insn[]                     byTextLine;
+	private final Map<Insn, Anchor>          anchors;
+	private final Map<TextRange, List<Insn>> byRange;
+	private final Map<Method, TextRange>     lambdaBodies;
+	private final List<Insn>                 all;
+	
 	private InsnMapping(long sourceStamp, Insn[] byTextLine, Map<Insn, Anchor> anchors, Map<TextRange, List<Insn>> byRange,
 	                    Map<Method, TextRange> lambdaBodies, List<Insn> all){
 		this.sourceStamp = sourceStamp;
@@ -45,7 +54,7 @@ public final class InsnMapping{
 		this.lambdaBodies = lambdaBodies;
 		this.all = all;
 	}
-
+	
 	/**
 	 * Must be called in a read action.
 	 *
@@ -56,12 +65,12 @@ public final class InsnMapping{
 		if(!(file instanceof PsiJavaFile) || !file.isValid()) return null;
 		PsiClass psiClass = findClass(file, className.replace('/', '.'));
 		if(psiClass == null) return null;
-
+		
 		var anchors      = new HashMap<Insn, Anchor>();
 		var lambdaPsi    = new HashMap<String, PsiElement>();
 		var lambdaBodies = new HashMap<Method, TextRange>();
 		var pending      = new ArrayList<Method>();
-
+		
 		for(var method : printed.methods()){
 			if(method.isLambda()){
 				pending.add(method);
@@ -97,7 +106,7 @@ public final class InsnMapping{
 				alignMethod(method, sourceAnchors, anchors, lambdaPsi);
 			}
 		}
-
+		
 		// Group by highlighted range: a field initializer is compiled into every constructor, so one range can have many instructions
 		var byRange = new HashMap<TextRange, List<Insn>>();
 		for(var e : anchors.entrySet()){
@@ -113,7 +122,7 @@ public final class InsnMapping{
 				if(body != null) byRange.get(e.getValue().own()).addAll(body.insns);
 			}
 		}
-
+		
 		int lineCount = (int)printed.text().chars().filter(c -> c == '\n').count() + 1;
 		var byLine    = new Insn[lineCount];
 		var all       = new ArrayList<Insn>();
@@ -126,7 +135,7 @@ public final class InsnMapping{
 		}
 		return new InsnMapping(document.getModificationStamp(), byLine, anchors, byRange, lambdaBodies, all);
 	}
-
+	
 	/**
 	 * @return where the body of a lambda (or the method reference) compiled into the given synthetic method is, null if unknown
 	 */
@@ -136,11 +145,11 @@ public final class InsnMapping{
 		}
 		return null;
 	}
-
+	
 	public boolean isValidFor(Document sourceDocument){
 		return sourceDocument.getModificationStamp() == sourceStamp;
 	}
-
+	
 	/**
 	 * @return the bytecode for the source expression at the offset, or the bytecode of the line, limited to the
 	 * method the offset is in (so code in lambdas on the same line is told apart). Null if nothing is known.
@@ -153,7 +162,7 @@ public final class InsnMapping{
 			}
 		}
 		if(best != null) return toRanges(byRange.get(best));
-
+		
 		Method    context      = null;
 		TextRange contextRange = null;
 		for(var e : lambdaBodies.entrySet()){
@@ -171,7 +180,7 @@ public final class InsnMapping{
 		}
 		return insns.isEmpty()? null : toRanges(insns);
 	}
-
+	
 	/**
 	 * @return the source range of the expression the instruction on this bytecode text line was compiled from
 	 */
@@ -182,7 +191,7 @@ public final class InsnMapping{
 		var anchor = anchors.get(insn);
 		return anchor == null? null : anchor.own();
 	}
-
+	
 	private static List<LineMapping.Range> toRanges(Collection<Insn> insns){
 		var sorted = insns.stream().filter(i -> i.textStart()>=0).sorted(Comparator.comparingInt(Insn::textStart)).toList();
 		var result = new ArrayList<LineMapping.Range>();
@@ -199,13 +208,13 @@ public final class InsnMapping{
 		if(start != -1) result.add(new LineMapping.Range(start, end));
 		return result;
 	}
-
+	
 	// ------------------------------------------------------------ alignment
-
+	
 	private static void alignMethod(Method method, List<Anchor> sourceAnchors, Map<Insn, Anchor> out, Map<String, PsiElement> lambdaPsi){
 		var insns = method.insns;
 		if(insns.isEmpty() || sourceAnchors.isEmpty()) return;
-
+		
 		int[] match;
 		if((long)insns.size()*sourceAnchors.size()<=Aligner.MAX_CELLS){
 			match = Aligner.align(insns.size(), sourceAnchors.size(), (i, j) -> score(insns.get(i), sourceAnchors.get(j)));
@@ -213,7 +222,7 @@ public final class InsnMapping{
 			match = alignByLine(insns, sourceAnchors);
 		}
 		Aligner.attachUnmatched(match, i -> insns.get(i).line(), i -> attachesForward(insns.get(i).opcode()));
-
+		
 		for(int i = 0; i<match.length; i++){
 			if(match[i] == -1) continue;
 			var insn   = insns.get(i);
@@ -224,14 +233,14 @@ public final class InsnMapping{
 			}
 		}
 	}
-
+	
 	/**
 	 * Fallback for huge methods: align each source line on its own.
 	 */
 	private static int[] alignByLine(List<Insn> insns, List<Anchor> anchors){
-		int[] match  = new int[insns.size()];
+		int[] match = new int[insns.size()];
 		Arrays.fill(match, -1);
-		var   byLine = new HashMap<Integer, List<Integer>>();
+		var byLine = new HashMap<Integer, List<Integer>>();
 		for(int j = 0; j<anchors.size(); j++) byLine.computeIfAbsent(anchors.get(j).line(), k -> new ArrayList<>()).add(j);
 		var insnsByLine = new LinkedHashMap<Integer, List<Integer>>();
 		for(int i = 0; i<insns.size(); i++) insnsByLine.computeIfAbsent(insns.get(i).line(), k -> new ArrayList<>()).add(i);
@@ -245,14 +254,14 @@ public final class InsnMapping{
 		}
 		return match;
 	}
-
+	
 	private static boolean attachesForward(int opcode){
 		return opcode>=ACONST_NULL && opcode<=LDC ||   // constants
 		       opcode>=ILOAD && opcode<=ALOAD ||       // loads
 		       opcode>=DUP && opcode<=SWAP ||
 		       opcode == NEW || opcode == GETSTATIC;
 	}
-
+	
 	static int score(Insn insn, Anchor anchor){
 		int base = baseScore(insn, anchor);
 		if(base<=0) return 0;
@@ -262,7 +271,7 @@ public final class InsnMapping{
 		}
 		return base;
 	}
-
+	
 	private static int baseScore(Insn insn, Anchor a){
 		int op = insn.opcode();
 		return switch(a.kind()){
@@ -311,7 +320,7 @@ public final class InsnMapping{
 			case MONITOR -> op == MONITORENTER || op == MONITOREXIT? 5 : 0;
 		};
 	}
-
+	
 	private static String binop(int op){
 		if(op<=DADD) return "+";
 		if(op<=DSUB) return "-";
@@ -325,15 +334,15 @@ public final class InsnMapping{
 		if(op<=LOR) return "|";
 		return "^";
 	}
-
+	
 	private static String simpleName(@Nullable String internalName){
 		if(internalName == null) return "";
 		int i = Math.max(internalName.lastIndexOf('/'), internalName.lastIndexOf('$'));
 		return internalName.substring(i + 1);
 	}
-
+	
 	// ------------------------------------------------------------ source structure
-
+	
 	private static @Nullable PsiClass findClass(PsiFile file, String jvmName){
 		for(var c : PsiTreeUtil.findChildrenOfType(file, PsiClass.class)){
 			if(c instanceof PsiTypeParameter) continue;
@@ -341,13 +350,13 @@ public final class InsnMapping{
 		}
 		return null;
 	}
-
+	
 	/**
 	 * @return the source the method was compiled from, in order, or null if it has no source (synthetic, generated...)
 	 */
 	private static @Nullable List<PsiElement> rootsFor(Method method, PsiClass psiClass){
 		if((method.access&(ACC_SYNTHETIC|ACC_BRIDGE)) != 0) return null;
-
+		
 		if(method.name.equals("<clinit>")){
 			var roots = new ArrayList<PsiElement>();
 			for(PsiElement c = psiClass.getFirstChild(); c != null; c = c.getNextSibling()){
@@ -356,16 +365,16 @@ public final class InsnMapping{
 			}
 			return roots;
 		}
-
+		
 		if(method.name.equals("<init>")){
 			var ctor = findMethod(List.of(psiClass.getConstructors()), method);
 			var body = ctor == null? null : ctor.getBody();
-
+			
 			PsiStatement first = body == null || body.getStatements().length == 0? null : body.getStatements()[0];
-			String       call  = first instanceof PsiExpressionStatement es && es.getExpression() instanceof PsiMethodCallExpression mc?
-			                     mc.getMethodExpression().getReferenceName() : null;
+			String call = first instanceof PsiExpressionStatement es && es.getExpression() instanceof PsiMethodCallExpression mc?
+			              mc.getMethodExpression().getReferenceName() : null;
 			if("this".equals(call)) return List.of(body);
-
+			
 			// super(...), then field initializers and initializer blocks, then the rest of the constructor
 			var roots = new ArrayList<PsiElement>();
 			if("super".equals(call)) roots.add(first);
@@ -378,12 +387,12 @@ public final class InsnMapping{
 			}
 			return roots;
 		}
-
+		
 		var method0 = findMethod(List.of(psiClass.findMethodsByName(method.name, false)), method);
 		if(method0 == null || method0.getBody() == null) return null;
 		return List.of(method0.getBody());
 	}
-
+	
 	private static @Nullable PsiMethod findMethod(List<PsiMethod> candidates, Method method){
 		if(candidates.isEmpty()) return null;
 		for(var m : candidates){
@@ -391,7 +400,7 @@ public final class InsnMapping{
 		}
 		if(candidates.size() == 1) return candidates.getFirst();
 		// Constructors of inner classes and enums have extra synthetic parameters
-		int argCount = org.objectweb.asm.Type.getArgumentCount(method.descriptor);
+		int argCount = Type.getArgumentCount(method.descriptor);
 		for(int extra = 0; extra<=2; extra++){
 			for(var m : candidates){
 				if(m.getParameterList().getParametersCount() + extra == argCount) return m;

@@ -9,7 +9,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.idea.sync.CaretSync;
 
-import javax.swing.Icon;
+import javax.swing.*;
 import java.util.Map;
 
 import static org.objectweb.asm.idea.highlight.BytecodeHighlighter.*;
@@ -18,7 +18,7 @@ import static org.objectweb.asm.idea.highlight.BytecodeHighlighter.*;
  * Settings | Editor | Color Scheme | ASM Bytecode
  */
 public final class BytecodeColorSettingsPage implements ColorSettingsPage{
-
+	
 	private static final AttributesDescriptor[] DESCRIPTORS = {
 		new AttributesDescriptor("Instructions//Opcode", OPCODE),
 		new AttributesDescriptor("Instructions//Label", LABEL),
@@ -40,28 +40,28 @@ public final class BytecodeColorSettingsPage implements ColorSettingsPage{
 		new AttributesDescriptor("Braces and Operators//Braces", BRACES),
 		new AttributesDescriptor("Braces and Operators//Punctuation", PUNCTUATION),
 		new AttributesDescriptor("Code linked to the caret in the source", CaretSync.SYNC_LINE),
-	};
-
+		};
+	
 	@Override
 	public @Nullable Icon getIcon(){
 		return BytecodeFileType.INSTANCE.getIcon();
 	}
-
+	
 	@Override
 	public @NotNull SyntaxHighlighter getHighlighter(){
 		return new BytecodeHighlighter();
 	}
-
+	
 	@Override
 	public @NotNull String getDemoText(){
 		return """
 			// class version 69.0 (69)
 			// access flags 0x21
 			public class com/example/Greeter extends java/lang/Object {
-
+			
 			  // access flags 0x2
 			  private I count
-
+			
 			  // access flags 0x1
 			  @Ljava/lang/Deprecated;() // invisible
 			  public greet(Ljava/lang/String;)Ljava/lang/String; throws java/io/IOException
@@ -93,22 +93,22 @@ public final class BytecodeColorSettingsPage implements ColorSettingsPage{
 			}
 			""";
 	}
-
+	
 	@Override
 	public @Nullable Map<String, TextAttributesKey> getAdditionalHighlightingTagToDescriptorMap(){
 		return Map.of("sync", CaretSync.SYNC_LINE);
 	}
-
+	
 	@Override
 	public AttributesDescriptor @NotNull [] getAttributeDescriptors(){
 		return DESCRIPTORS;
 	}
-
+	
 	@Override
 	public ColorDescriptor @NotNull [] getColorDescriptors(){
 		return ColorDescriptor.EMPTY_ARRAY;
 	}
-
+	
 	@Override
 	public @NotNull String getDisplayName(){
 		return "ASM Bytecode";

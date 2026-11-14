@@ -11,14 +11,14 @@ import java.util.function.IntUnaryOperator;
  * subsequence (a weighted LCS).
  */
 public final class Aligner{
-
+	
 	/**
 	 * Above this many cells the quadratic table is not worth it, callers should split the input.
 	 */
 	public static final long MAX_CELLS = 4_000_000;
-
+	
 	private Aligner(){ }
-
+	
 	/**
 	 * @param score score of pairing a with b, &lt;= 0 if they cannot be paired
 	 * @return for each element of a, the index of the paired element of b or -1
@@ -27,7 +27,7 @@ public final class Aligner{
 		int[] result = new int[aLen];
 		Arrays.fill(result, -1);
 		if(aLen == 0 || bLen == 0) return result;
-
+		
 		int   w     = bLen + 1;
 		int[] table = new int[(aLen + 1)*w];
 		for(int i = 1; i<=aLen; i++){
@@ -38,7 +38,7 @@ public final class Aligner{
 				table[i*w + j] = best;
 			}
 		}
-
+		
 		int i = aLen, j = bLen;
 		while(i>0 && j>0){
 			int cur = table[i*w + j];
@@ -54,7 +54,7 @@ public final class Aligner{
 		}
 		return result;
 	}
-
+	
 	/**
 	 * Gives unpaired elements the pairing of a neighbour: instructions such as DUP, POP, CHECKCAST or boxing calls
 	 * have no source expression of their own but clearly belong to the one next to them.
@@ -77,7 +77,7 @@ public final class Aligner{
 			next[i] = last;
 			if(match[i] != -1) last = i;
 		}
-
+		
 		int[] original = match.clone();
 		for(int i = 0; i<n; i++){
 			if(original[i] != -1) continue;

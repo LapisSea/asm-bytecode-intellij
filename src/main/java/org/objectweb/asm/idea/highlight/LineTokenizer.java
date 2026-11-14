@@ -15,46 +15,54 @@ import static org.objectweb.asm.idea.highlight.BytecodeTokens.*;
  * restartable at any line.
  */
 final class LineTokenizer{
-
+	
 	interface Sink{
 		void token(IElementType type, int start, int end);
 	}
-
+	
 	private static final Set<String> OPCODES = Arrays.stream(Printer.OPCODES).filter(s -> !s.isEmpty()).collect(Collectors.toUnmodifiableSet());
-
-	/** Followed by a type that may be in the default package, so not recognizable by a slash */
+	
+	/**
+	 * Followed by a type that may be in the default package, so not recognizable by a slash
+	 */
 	private static final Set<String> TYPE_OPCODES = Set.of("NEW", "ANEWARRAY", "CHECKCAST", "INSTANCEOF");
-
+	
 	private static final Set<String> DIRECTIVES = Set.of(
 		"LINENUMBER", "LOCALVARIABLE", "MAXSTACK", "MAXLOCALS", "TRYCATCHBLOCK", "FRAME",
 		"NESTHOST", "NESTMEMBER", "INNERCLASS", "OUTERCLASS", "PERMITTEDSUBCLASS", "RECORDCOMPONENT",
 		"LOCALVARIABLEANNOTATION", "INSNANNOTATION", "TRYCATCHBLOCKANNOTATION", "ATTRIBUTE"
 	);
-
-	/** Followed by class names */
+	
+	/**
+	 * Followed by class names
+	 */
 	private static final Set<String> CLASS_DIRECTIVES = Set.of("NESTHOST", "NESTMEMBER", "INNERCLASS", "OUTERCLASS", "PERMITTEDSUBCLASS");
-
+	
 	private static final Set<String> FRAME_KINDS = Set.of("FULL", "SAME", "SAME1", "APPEND", "CHOP");
-
+	
 	private static final Set<String> KEYWORDS = Set.of(
 		"public", "private", "protected", "static", "final", "abstract", "synchronized", "volatile", "transient", "native",
 		"strictfp", "synthetic", "bridge", "varargs", "mandated", "deprecated", "enum", "interface", "class", "extends",
 		"implements", "throws", "record", "module", "open", "requires", "exports", "opens", "uses", "provides", "to", "with",
 		"transitive", "default", "null", "this", "super", "annotation"
 	);
-
-	/** Followed by class names */
+	
+	/**
+	 * Followed by class names
+	 */
 	private static final Set<String> CLASS_KEYWORDS = Set.of("class", "interface", "extends", "implements", "throws", "enum", "record", "annotation");
-
+	
 	private static final String PRIMITIVES       = "ZBCSIJFDV";
-	/** Frame entries: top, int, float, double, long, null, uninitialized this */
+	/**
+	 * Frame entries: top, int, float, double, long, null, uninitialized this
+	 */
 	private static final String FRAME_PRIMITIVES = "TIFDJNU";
-
+	
 	private final CharSequence buf;
 	private final int          end;
 	private final Sink         sink;
 	private       int          pos;
-
+	
 	// What the line has had so far
 	private final boolean declaration; // a class member, as opposed to a method body line
 	private       boolean opcode;
@@ -64,7 +72,7 @@ final class LineTokenizer{
 	private       int     frameDepth;
 	private       boolean type;
 	private       boolean localNamed;
-
+	
 	private LineTokenizer(CharSequence buf, int start, int end, Sink sink){
 		this.buf = buf;
 		this.end = end;
@@ -74,23 +82,23 @@ final class LineTokenizer{
 		while(start + indent<end && buf.charAt(start + indent) == ' ') indent++;
 		declaration = indent == 2;
 	}
-
+	
 	/**
 	 * @param end the end of the line, excluding the line break
 	 */
 	static void tokenize(CharSequence buf, int start, int end, Sink sink){
 		new LineTokenizer(buf, start, end, sink).run();
 	}
-
+	
 	private void emit(IElementType type, int to){
 		if(to>pos) sink.token(type, pos, to);
 		pos = to;
 	}
-
+	
 	private char at(int i){
 		return i<end? buf.charAt(i) : 0;
 	}
-
+	
 	private void run(){
 		while(pos<end){
 			char c = buf.charAt(pos);
@@ -132,9 +140,9 @@ final class LineTokenizer{
 			}
 		}
 	}
-
+	
 	// ------------------------------------------------------------ literals
-
+	
 	private void string(){
 		int e = pos + 1;
 		while(e<end){
@@ -148,7 +156,7 @@ final class LineTokenizer{
 		}
 		emit(STRING, Math.min(e, end));
 	}
-
+	
 	private void number(){
 		int e = pos;
 		if(buf.charAt(e) == '-') e++;
@@ -169,7 +177,7 @@ final class LineTokenizer{
 		if("LFDlfd".indexOf(at(e))>=0 && at(e) != 0 && !isWordPart(at(e + 1))) e++;
 		emit(NUMBER, e);
 	}
-
+	
 	private void annotation(){
 		int e = pos + 1;
 		if(at(e) == 'L'){
@@ -178,10 +186,12 @@ final class LineTokenizer{
 		}
 		emit(ANNOTATION, e);
 	}
-
+	
 	// ------------------------------------------------------------ descriptors
-
-	/** @return the end of the field descriptor at i, or -1 if there is none */
+	
+	/**
+	 * @return the end of the field descriptor at i, or -1 if there is none
+	 */
 	private int typeEnd(int i){
 		while(at(i) == '[') i++;
 		char c = at(i);
@@ -192,8 +202,10 @@ final class LineTokenizer{
 		}
 		return c != 0 && PRIMITIVES.indexOf(c)>=0? i + 1 : -1;
 	}
-
-	/** @return the end of the method descriptor at i, or -1 if there is none */
+	
+	/**
+	 * @return the end of the method descriptor at i, or -1 if there is none
+	 */
 	private int methodDescriptorEnd(int i){
 		if(at(i) != '(') return -1;
 		i++;
@@ -204,7 +216,7 @@ final class LineTokenizer{
 		}
 		return typeEnd(i + 1);
 	}
-
+	
 	private void type(){
 		int e = pos;
 		while(at(e) == '[') e++;
@@ -216,49 +228,53 @@ final class LineTokenizer{
 		}
 		type = true;
 	}
-
+	
 	private void methodDescriptor(){
 		emit(PARENS, pos + 1);
 		while(at(pos) != ')') type();
 		emit(PARENS, pos + 1);
 		type();
 	}
-
-	/** Lpackage/Name; with the package, L and ; in a quieter color */
+	
+	/**
+	 * Lpackage/Name; with the package, L and ; in a quieter color
+	 */
 	private void classDescriptor(int e){
 		int slash = lastSlash(pos, e);
 		emit(PACKAGE, slash<0? pos + 1 : slash + 1);
 		emit(CLASS_NAME, e - 1);
 		emit(PACKAGE, e);
 	}
-
-	/** An internal name: package/Name */
+	
+	/**
+	 * An internal name: package/Name
+	 */
 	private void className(int e){
 		int slash = lastSlash(pos, e);
 		if(slash>=0) emit(PACKAGE, slash + 1);
 		emit(CLASS_NAME, e);
 	}
-
+	
 	private int lastSlash(int from, int to){
 		for(int i = to - 1; i>=from; i--) if(buf.charAt(i) == '/') return i;
 		return -1;
 	}
-
+	
 	// ------------------------------------------------------------ words
-
+	
 	private static boolean isWordStart(char c){
 		return Character.isJavaIdentifierStart(c) || c == '<';
 	}
-
+	
 	private static boolean isWordPart(char c){
 		return Character.isJavaIdentifierPart(c) && c != 0 || c == '<' || c == '>';
 	}
-
+	
 	private void word(){
 		int s = pos, e = pos;
 		while(e<end && (isWordPart(buf.charAt(e)) || buf.charAt(e) == '/')) e++;
 		String w = buf.subSequence(s, e).toString();
-
+		
 		// Field descriptor: Ljava/lang/String;
 		if(w.charAt(0) == 'L' && at(e) == ';' && w.length()>1){
 			classDescriptor(e + 1);

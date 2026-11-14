@@ -25,7 +25,7 @@ import org.objectweb.asm.idea.nav.BytecodeEditorSupport;
 import org.objectweb.asm.idea.sync.RecordingTextifier;
 import org.objectweb.asm.util.TraceClassVisitor;
 
-import javax.swing.JComponent;
+import javax.swing.*;
 import java.beans.PropertyChangeListener;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,17 +35,17 @@ import java.util.concurrent.atomic.AtomicInteger;
  * folding and instruction docs of the tool window.
  */
 final class ClassFileEditor extends UserDataHolderBase implements FileEditor{
-
-	private final Project               project;
-	private final VirtualFile           file;
-	private final Editor                editor;
-	private final InsnDocPanel          docPanel;
-	private final BytecodeEditorSupport support;
-	private final OnePixelSplitter      component;
-	private final AtomicInteger         generation  = new AtomicInteger();
-	private       RecordingTextifier.Printed[] byLine = new RecordingTextifier.Printed[0];
-	private       boolean               disposed;
-
+	
+	private final Project                      project;
+	private final VirtualFile                  file;
+	private final Editor                       editor;
+	private final InsnDocPanel                 docPanel;
+	private final BytecodeEditorSupport        support;
+	private final OnePixelSplitter             component;
+	private final AtomicInteger                generation = new AtomicInteger();
+	private       RecordingTextifier.Printed[] byLine     = new RecordingTextifier.Printed[0];
+	private       boolean                      disposed;
+	
 	ClassFileEditor(Project project, VirtualFile file){
 		this.project = project;
 		this.file = file;
@@ -56,11 +56,11 @@ final class ClassFileEditor extends UserDataHolderBase implements FileEditor{
 		Disposer.register(this, support);
 		docPanel = new InsnDocPanel(project);
 		Disposer.register(this, docPanel);
-
+		
 		component = new OnePixelSplitter(true, "asm.bytecode.classFileDocs", 0.7f);
 		component.setFirstComponent(editor.getComponent());
 		if(config().isInstructionDocs()) component.setSecondComponent(docPanel);
-
+		
 		editor.getCaretModel().addCaretListener(new CaretListener(){
 			@Override
 			public void caretPositionChanged(@NotNull CaretEvent event){
@@ -81,11 +81,11 @@ final class ClassFileEditor extends UserDataHolderBase implements FileEditor{
 		});
 		load();
 	}
-
+	
 	private ASMPluginComponent config(){
 		return project.getService(ASMPluginComponent.class);
 	}
-
+	
 	private void load(){
 		int gen    = generation.incrementAndGet();
 		var config = config();
@@ -109,7 +109,7 @@ final class ClassFileEditor extends UserDataHolderBase implements FileEditor{
 			});
 		});
 	}
-
+	
 	private void show(String text, @Nullable RecordingTextifier.Result printed){
 		int caret = editor.getCaretModel().getOffset();
 		ApplicationManager.getApplication().runWriteAction(() -> {
@@ -123,52 +123,52 @@ final class ClassFileEditor extends UserDataHolderBase implements FileEditor{
 		editor.getCaretModel().moveToOffset(Math.min(caret, text.length()));
 		showDocs();
 	}
-
+	
 	private void showDocs(){
 		if(component.getSecondComponent() == null) return;
 		int line = editor.getCaretModel().getLogicalPosition().line;
 		docPanel.show(line<byLine.length? byLine[line] : null);
 	}
-
+	
 	@Override
 	public @NotNull JComponent getComponent(){
 		return component;
 	}
-
+	
 	@Override
 	public @Nullable JComponent getPreferredFocusedComponent(){
 		return editor.getContentComponent();
 	}
-
+	
 	@Override
 	public @NotNull String getName(){
 		return "Bytecode";
 	}
-
+	
 	@Override
 	public @NotNull VirtualFile getFile(){
 		return file;
 	}
-
+	
 	@Override
 	public void setState(@NotNull FileEditorState state){ }
-
+	
 	@Override
 	public boolean isModified(){
 		return false;
 	}
-
+	
 	@Override
 	public boolean isValid(){
 		return file.isValid();
 	}
-
+	
 	@Override
 	public void addPropertyChangeListener(@NotNull PropertyChangeListener listener){ }
-
+	
 	@Override
 	public void removePropertyChangeListener(@NotNull PropertyChangeListener listener){ }
-
+	
 	@Override
 	public void dispose(){
 		disposed = true;

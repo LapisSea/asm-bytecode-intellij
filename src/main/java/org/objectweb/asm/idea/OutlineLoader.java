@@ -1,6 +1,5 @@
 package org.objectweb.asm.idea;
 
-import java.util.function.IntUnaryOperator;
 import com.intellij.execution.filters.LineNumbersMapping;
 import com.intellij.ide.highlighter.JavaFileType;
 import com.intellij.ide.util.JavaAnonymousClassesHelper;
@@ -8,11 +7,11 @@ import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.compiler.CompilerManager;
 import com.intellij.openapi.components.Service;
-import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.module.Module;
-import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.module.ModuleUtil;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.CompilerModuleExtension;
 import com.intellij.openapi.roots.ProjectFileIndex;
@@ -54,6 +53,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Given a java file (or any file which generates classes), tries to locate a .class file. If the compilation state is
@@ -65,42 +65,42 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Service(Service.Level.PROJECT)
 public final class OutlineLoader{
-
+	
 	public static final String TOOL_WINDOW_ID = "ASM";
 	
 	private static final Logger LOG = Logger.getInstance(OutlineLoader.class);
-
+	
 	/**
 	 * @param generation    loads are numbered so a slow, older load never overwrites a newer one
 	 * @param userTriggered explicit requests activate the tool window and report failures, follow mode loads do neither
 	 */
 	private record Request(long generation, boolean userTriggered){ }
-
+	
 	private final Project    project;
 	private final AtomicLong generation = new AtomicLong();
-
+	
 	private volatile @Nullable VirtualFile requestedFile;
 	private volatile @Nullable String      requestedClass;
-
+	
 	public OutlineLoader(Project project){
 		this.project = project;
 	}
-
+	
 	public static OutlineLoader getInstance(Project project){
 		return project.getService(OutlineLoader.class);
 	}
-
+	
 	public static boolean canLoad(Project project, VirtualFile file){
 		return file != null && file.isValid() && PsiManager.getInstance(project).findFile(file) instanceof PsiClassOwner;
 	}
-
+	
 	/**
 	 * @return true if the last load was for this file, and for this class if one is given
 	 */
 	public boolean isRequested(VirtualFile file, @Nullable String className){
 		return file.equals(requestedFile) && (className == null || className.equals(requestedClass));
 	}
-
+	
 	/**
 	 * Loads the class at the caret of a source file (or the file itself if it is a class file). Must be called on the EDT.
 	 *
@@ -109,12 +109,12 @@ public final class OutlineLoader{
 	public void load(VirtualFile virtualFile, int caretOffset, boolean userTriggered){
 		final PsiFile psiFile = PsiManager.getInstance(project).findFile(virtualFile);
 		if(!(psiFile instanceof PsiClassOwner)) return;
-
+		
 		final var request = new Request(generation.incrementAndGet(), userTriggered);
 		final var isClass = "class".equals(virtualFile.getExtension());
 		requestedFile = virtualFile;
 		requestedClass = isClass? null : classNameAt(psiFile, caretOffset);
-
+		
 		final Application app = ApplicationManager.getApplication();
 		if(isClass){
 			// The editor shows decompiled code, synced through the decompiler's line mapping
@@ -126,13 +126,13 @@ public final class OutlineLoader{
 			app.executeOnPooledThread(() -> decode(findLibraryClassFile(psiFile, caretOffset), virtualFile, request));
 			return;
 		}
-
+		
 		final Module module = ModuleUtil.findModuleForPsiElement(psiFile);
 		if(module == null) return;
 		final CompilerModuleExtension cme             = CompilerModuleExtension.getInstance(module);
 		final CompilerManager         compilerManager = CompilerManager.getInstance(project);
 		final VirtualFile[]           files           = {virtualFile};
-
+		
 		final var fdm = FileDocumentManager.getInstance();
 		if(userTriggered){
 			app.runWriteAction(fdm::saveAllDocuments);
@@ -141,7 +141,7 @@ public final class OutlineLoader{
 			var doc = fdm.getCachedDocument(virtualFile);
 			if(doc != null && fdm.isDocumentUnsaved(doc)) app.runWriteAction(() -> fdm.saveDocument(doc));
 		}
-
+		
 		app.executeOnPooledThread(() -> {
 			if(isStale(request)) return;
 			var classFile         = new CompletableFuture<VirtualFile>();
@@ -157,11 +157,11 @@ public final class OutlineLoader{
 			classFile.thenAccept(file -> decode(file, virtualFile, request));
 		});
 	}
-
+	
 	private boolean isStale(Request request){
 		return request.generation() != generation.get();
 	}
-
+	
 	/**
 	 * @return the JVM name of the innermost class containing the offset, or null if there is none
 	 */
@@ -171,7 +171,7 @@ public final class OutlineLoader{
 			return psiClass == null? null : getJVMClassName(psiClass);
 		});
 	}
-
+	
 	private static @Nullable PsiClass findClassAt(PsiFile psiFile, int offset){
 		if(offset<0 || !psiFile.isValid()) return null;
 		PsiElement elem = psiFile.findElementAt(offset);
@@ -181,7 +181,7 @@ public final class OutlineLoader{
 		}
 		return null;
 	}
-
+	
 	private static @Nullable VirtualFile findLibraryClassFile(PsiFile psiFile, int caretOffset){
 		return ApplicationManager.getApplication().runReadAction((Computable<VirtualFile>)() -> {
 			if(!psiFile.isValid()) return null;
@@ -191,7 +191,7 @@ public final class OutlineLoader{
 				if(jvmClassName != null){
 					String           relativePath = jvmClassName.replace('.', '/') + ".class";
 					ProjectFileIndex index        = ProjectFileIndex.getInstance(aClass.getProject());
-
+					
 					PsiElement originalClass = aClass.getOriginalElement();
 					if(aClass instanceof PsiAnonymousClass){
 						originalClass = Objects.requireNonNull(PsiTreeUtil.getParentOfType(aClass, PsiClass.class)).getOriginalElement();
@@ -217,7 +217,7 @@ public final class OutlineLoader{
 			return null;
 		});
 	}
-
+	
 	private static @Nullable VirtualFile findClassFile(VirtualFile[] outputDirectories, PsiFile psiFile, int caretOffset){
 		return ApplicationManager.getApplication().runReadAction((Computable<VirtualFile>)() -> {
 			if(outputDirectories == null || !(psiFile instanceof PsiClassOwner psiJavaFile) || !psiFile.isValid()) return null;
@@ -232,7 +232,7 @@ public final class OutlineLoader{
 			return null;
 		});
 	}
-
+	
 	private static @Nullable VirtualFile getClassFile(VirtualFile[] outputDirectories, @NotNull PsiClass psiClass){
 		String jvmClassName = getJVMClassName(psiClass);
 		if(jvmClassName == null) jvmClassName = "";
@@ -243,7 +243,7 @@ public final class OutlineLoader{
 		}
 		return null;
 	}
-
+	
 	public static @Nullable String getJVMClassName(PsiClass aClass){
 		if(!(aClass instanceof PsiAnonymousClass)){
 			return ClassUtil.getJVMClassName(aClass);
@@ -254,7 +254,7 @@ public final class OutlineLoader{
 		}
 		return null;
 	}
-
+	
 	/**
 	 * Called off the EDT.
 	 *
@@ -268,12 +268,12 @@ public final class OutlineLoader{
 			return;
 		}
 		final ASMPluginComponent config = project.getService(ASMPluginComponent.class);
-
+		
 		Executor exec = r -> app.invokeLater(() -> {
 			if(isStale(request) || project.isDisposed()) return;
 			app.runWriteAction(r);
 		});
-
+		
 		ClassReader reader;
 		try{
 			file.refresh(false, false);
@@ -281,7 +281,7 @@ public final class OutlineLoader{
 		}catch(IOException e){
 			return;
 		}
-
+		
 		// A class file is its own source when it is shown decompiled, but with lines of its own
 		IntUnaryOperator lineMap = IntUnaryOperator.identity();
 		if(sourceFile != null && isClassFile(sourceFile)){
@@ -290,7 +290,7 @@ public final class OutlineLoader{
 		}
 		final IntUnaryOperator lines  = lineMap == null? IntUnaryOperator.identity() : lineMap;
 		final VirtualFile      source = sourceFile;
-
+		
 		record Outline(String code, @Nullable RecordingTextifier.Result printed, @Nullable InsnMapping mapping){ }
 		CompletableFuture
 			.supplyAsync(() -> {
@@ -304,7 +304,7 @@ public final class OutlineLoader{
 				BytecodeOutline.getInstance(project).setCode(file, source, outline.code(), outline.printed(), outline.mapping(), lines);
 				afterBytecodeShown(request);
 			}, exec);
-
+		
 		CompletableFuture
 			.supplyAsync(() -> {
 				var stringWriter = new StringWriter();
@@ -326,7 +326,7 @@ public final class OutlineLoader{
 			})
 			.exceptionally(e -> mapVisitErr(e, config))
 			.thenAcceptAsync(code -> BytecodeASMified.getInstance(project).setCode(file, code), exec);
-
+		
 		CompletableFuture
 			.supplyAsync(() -> {
 				var stringWriter = new StringWriter();
@@ -343,7 +343,7 @@ public final class OutlineLoader{
 			.exceptionally(e -> mapVisitErr(e, config))
 			.thenAcceptAsync(code -> GroovifiedView.getInstance(project).setCode(file, code), exec);
 	}
-
+	
 	/**
 	 * Per instruction source mapping. Best effort: any failure just means falling back to line matching.
 	 */
@@ -352,7 +352,7 @@ public final class OutlineLoader{
 		try{
 			return ApplicationManager.getApplication().runReadAction((Computable<InsnMapping>)() -> {
 				if(project.isDisposed() || !sourceFile.isValid()) return null;
-				var psiFile  = PsiManager.getInstance(project).findFile(sourceFile);
+				var psiFile = PsiManager.getInstance(project).findFile(sourceFile);
 				// Decompiled code: the Java file behind the text shown
 				if(psiFile instanceof PsiCompiledElement compiled && compiled.getMirror() instanceof PsiFile mirror) psiFile = mirror;
 				var document = FileDocumentManager.getInstance().getDocument(sourceFile);
@@ -370,7 +370,7 @@ public final class OutlineLoader{
 	private static boolean isClassFile(VirtualFile file){
 		return "class".equals(file.getExtension());
 	}
-
+	
 	/**
 	 * The decompiler records which lines of its text each line of the class file became.
 	 *
@@ -388,7 +388,7 @@ public final class OutlineLoader{
 			};
 		});
 	}
-
+	
 	private void afterBytecodeShown(Request request){
 		var outline = BytecodeOutline.getInstance(project);
 		if(request.userTriggered()){
@@ -399,7 +399,7 @@ public final class OutlineLoader{
 			outline.syncWithSourceCaret();
 		}
 	}
-
+	
 	static String mapVisitErr(Throwable e, ASMPluginComponent config){
 		if(e instanceof CompletionException ce && ce.getCause() != null) e = ce.getCause();
 		var printw = new StringWriter();
@@ -412,7 +412,7 @@ public final class OutlineLoader{
 		       printw.toString().replace("\r", "") + "\n" +
 		       "*/";
 	}
-
+	
 	static int computeFlags(ASMPluginComponent config){
 		int flags = 0;
 		if(config.isSkipDebug()) flags = flags|ClassReader.SKIP_DEBUG;
@@ -421,7 +421,7 @@ public final class OutlineLoader{
 		if(config.isSkipCode()) flags = flags|ClassReader.SKIP_CODE;
 		return flags;
 	}
-
+	
 	private void showNotFound(){
 		BytecodeOutline.getInstance(project).setCode(null, "");
 		BytecodeASMified.getInstance(project).setCode(null, "");

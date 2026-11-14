@@ -6,6 +6,7 @@
 This is a fork of the original Intellij Plugin that has been abandoned.
 
 ## Getting the updated addon
+
 1. It can be found on the jetbrains marketplace under the "Rebooted" name
 2. You can get the plugin from the releases page
 3. You can download the repo and build a jar with gradle
@@ -18,7 +19,7 @@ The addon should work with the latest version of IntelliJ IDEA. If it does not, 
 
 I've been wanting to improve upon this plugin for a long time, and it has finally been done.
 
-There has been a significant upgrade of the plugin, bytecode lexing and text highlighting has been added. IDE integrations have also been significantly improved and most exciting, cursor can now 
+There has been a significant upgrade of the plugin, bytecode lexing and text highlighting has been added. IDE integrations have also been significantly improved and most exciting, cursor can now
 follow the editor and will automatically switch classes!
 
 The plugin can now also open standalone class files and parse them. Editing is planned but not implemented.
