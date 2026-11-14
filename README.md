@@ -5,6 +5,8 @@
 
 This is a fork of the original Intellij Plugin that has been abandoned.
 
+![ASM Bytecode Outline](docs/screenshot.png)
+
 ## Getting the updated addon
 
 1. It can be found on the jetbrains marketplace under the "Rebooted" name
@@ -16,6 +18,8 @@ With **Follow Editor** enabled (the toggle in the Bytecode tab), the tool window
 
 I am open to feature requests, but beyond this, the addon is mostly on maintenance mode. (except when it's not!)
 The addon should work with the latest version of IntelliJ IDEA. If it does not, please open an issue about it! I may have forgotten to update it.
+
+## Recent & original work
 
 I've been wanting to improve upon this plugin for a long time, and it has finally been done.
 
