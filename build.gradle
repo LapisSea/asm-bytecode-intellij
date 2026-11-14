@@ -1,10 +1,12 @@
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+
 plugins {
 	id 'org.jetbrains.intellij.platform' version '2.20.1'
 	id 'java'
 }
 
 group = 'asm.bytecode_outline.re'
-version = '0.5.0'
+version = '1.0.0'
 
 repositories {
 	mavenCentral()
@@ -40,6 +42,9 @@ dependencies {
 	intellijPlatform {
 		intellijIdea intellij_version
 		bundledPlugin "com.intellij.java"
+		
+		testFramework TestFrameworkType.Platform.INSTANCE
+		testFramework TestFrameworkType.Plugin.Java.INSTANCE
 		
 		pluginVerifier()
 	}

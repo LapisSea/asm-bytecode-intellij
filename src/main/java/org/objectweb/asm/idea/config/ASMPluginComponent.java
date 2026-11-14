@@ -50,6 +50,8 @@ public class ASMPluginComponent implements PersistentStateComponent<Element>{
 	private boolean         skipCode;
 	private boolean         expandFrames;
 	private boolean         followEditor = true;
+	private boolean         javaSyntaxMapping = true;
+	private boolean         instructionDocs = true;
 	private GroovyCodeStyle codeStyle = GroovyCodeStyle.LEGACY;
 	
 	public ASMPluginComponent(final Project project){
@@ -103,6 +105,28 @@ public class ASMPluginComponent implements PersistentStateComponent<Element>{
 		this.followEditor = followEditor;
 	}
 	
+	/**
+	 * Whether caret syncing matches individual instructions to Java expressions, or only whole lines.
+	 */
+	public boolean isJavaSyntaxMapping(){
+		return javaSyntaxMapping;
+	}
+	
+	public void setJavaSyntaxMapping(final boolean javaSyntaxMapping){
+		this.javaSyntaxMapping = javaSyntaxMapping;
+	}
+	
+	/**
+	 * Whether to show the documentation of the instruction under the caret.
+	 */
+	public boolean isInstructionDocs(){
+		return instructionDocs;
+	}
+	
+	public void setInstructionDocs(final boolean instructionDocs){
+		this.instructionDocs = instructionDocs;
+	}
+	
 	// -------------------- state persistence
 	
 	@Override
@@ -114,6 +138,8 @@ public class ASMPluginComponent implements PersistentStateComponent<Element>{
 		asmNode.setAttribute("skipCode", String.valueOf(skipCode));
 		asmNode.setAttribute("expandFrames", String.valueOf(expandFrames));
 		asmNode.setAttribute("followEditor", String.valueOf(followEditor));
+		asmNode.setAttribute("javaSyntaxMapping", String.valueOf(javaSyntaxMapping));
+		asmNode.setAttribute("instructionDocs", String.valueOf(instructionDocs));
 		root.addContent(asmNode);
 		Element groovyNode = new Element("groovy");
 		groovyNode.setAttribute("codeStyle", codeStyle.toString());
@@ -135,6 +161,10 @@ public class ASMPluginComponent implements PersistentStateComponent<Element>{
 			if(expandFramesStr != null) expandFrames = Boolean.parseBoolean(expandFramesStr);
 			final String followEditorStr = asmNode.getAttributeValue("followEditor");
 			if(followEditorStr != null) followEditor = Boolean.parseBoolean(followEditorStr);
+			final String javaSyntaxMappingStr = asmNode.getAttributeValue("javaSyntaxMapping");
+			if(javaSyntaxMappingStr != null) javaSyntaxMapping = Boolean.parseBoolean(javaSyntaxMappingStr);
+			final String instructionDocsStr = asmNode.getAttributeValue("instructionDocs");
+			if(instructionDocsStr != null) instructionDocs = Boolean.parseBoolean(instructionDocsStr);
 		}
 		Element groovyNode = state.getChild("groovy");
 		if(groovyNode != null){
@@ -151,6 +181,8 @@ public class ASMPluginComponent implements PersistentStateComponent<Element>{
 		       ", skipCode=" + skipCode +
 		       ", expandFrames=" + expandFrames +
 		       ", followEditor=" + followEditor +
+		       ", javaSyntaxMapping=" + javaSyntaxMapping +
+		       ", instructionDocs=" + instructionDocs +
 		       ", codeStyle=" + codeStyle +
 		       '}';
 	}

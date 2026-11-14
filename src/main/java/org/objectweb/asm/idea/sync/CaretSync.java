@@ -1,5 +1,7 @@
 package org.objectweb.asm.idea.sync;
 
+import com.intellij.openapi.fileEditor.OpenFileDescriptor;
+import com.intellij.pom.Navigatable;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
@@ -39,18 +41,25 @@ public final class CaretSync implements Disposable{
 	private final Project         project;
 	private final Editor          bytecodeEditor;
 	private final BooleanSupplier enabled;
+	private final BooleanSupplier insnMappingEnabled;
 
 	private @Nullable VirtualFile sourceFile;
 	private           LineMapping mapping = LineMapping.EMPTY;
+	private @Nullable InsnMapping insnMapping;
 	private           boolean     updating;
 
 	private final List<RangeHighlighter> bytecodeHighlights = new ArrayList<>();
 	private final List<RangeHighlighter> sourceHighlights   = new ArrayList<>();
 
-	public CaretSync(Project project, Editor bytecodeEditor, BooleanSupplier enabled){
+	/**
+	 * @param enabled            whether to sync at all
+	 * @param insnMappingEnabled whether to match single instructions to expressions, or only whole lines
+	 */
+	public CaretSync(Project project, Editor bytecodeEditor, BooleanSupplier enabled, BooleanSupplier insnMappingEnabled){
 		this.project = project;
 		this.bytecodeEditor = bytecodeEditor;
 		this.enabled = enabled;
+		this.insnMappingEnabled = insnMappingEnabled;
 		EditorFactory.getInstance().getEventMulticaster().addCaretListener(new CaretListener(){
 			@Override
 			public void caretPositionChanged(@NotNull CaretEvent event){
@@ -66,17 +75,49 @@ public final class CaretSync implements Disposable{
 	 * @param setText      performs the actual document update
 	 * @param bytecodeText the new bytecode text
 	 */
-	public void update(@Nullable VirtualFile sourceFile, Runnable setText, String bytecodeText){
+	public void update(@Nullable VirtualFile sourceFile, Runnable setText, String bytecodeText, @Nullable InsnMapping insnMapping){
+		update(sourceFile, setText, bytecodeText, insnMapping, java.util.function.IntUnaryOperator.identity());
+	}
+
+	/**
+	 * @param lineMap translates the class file's line numbers to lines of the source file's document, see
+	 *                {@link LineMapping#parse(String, java.util.function.IntUnaryOperator)}
+	 */
+	public void update(@Nullable VirtualFile sourceFile, Runnable setText, String bytecodeText, @Nullable InsnMapping insnMapping,
+	                   java.util.function.IntUnaryOperator lineMap){
 		clearHighlights();
 		updating = true;
 		try{
 			mapping = LineMapping.EMPTY;
+			this.insnMapping = null;
 			setText.run();
 		}finally{
 			updating = false;
 		}
 		this.sourceFile = sourceFile;
-		mapping = sourceFile == null? LineMapping.EMPTY : LineMapping.parse(bytecodeText);
+		mapping = sourceFile == null? LineMapping.EMPTY : LineMapping.parse(bytecodeText, lineMap);
+		this.insnMapping = sourceFile == null? null : insnMapping;
+	}
+	
+	/**
+	 * Where a lambda compiled into the given synthetic method is in the source, if the source has not changed since.
+	 * Available even when syncing by Java syntax is turned off.
+	 */
+	public @Nullable Navigatable lambdaSource(String methodName){
+		var m    = insnMapping;
+		var file = sourceFile;
+		if(m == null || file == null || !file.isValid()) return null;
+		var doc = FileDocumentManager.getInstance().getDocument(file);
+		if(doc == null || !m.isValidFor(doc)) return null;
+		var range = m.lambdaBody(methodName);
+		return range == null? null : new OpenFileDescriptor(project, file, range.getStartOffset());
+	}
+
+	/** The instruction mapping, unless it is turned off or the source was edited since it was built (its offsets would be wrong). */
+	private @Nullable InsnMapping currentInsnMapping(Document sourceDoc){
+		if(!insnMappingEnabled.getAsBoolean()) return null;
+		var m = insnMapping;
+		return m != null && m.isValidFor(sourceDoc)? m : null;
 	}
 
 	/**
@@ -107,8 +148,12 @@ public final class CaretSync implements Disposable{
 		clearSourceHighlights();
 		clearBytecodeHighlights();
 
-		int line   = source.getCaretModel().getLogicalPosition().line;
-		var ranges = mapping.bytecodeRangesFor(line);
+		int line = source.getCaretModel().getLogicalPosition().line;
+		
+		List<LineMapping.Range> ranges = null;
+		var                     insns  = currentInsnMapping(source.getDocument());
+		if(insns != null) ranges = insns.bytecodeFor(source.getCaretModel().getOffset(), line);
+		if(ranges == null) ranges = mapping.bytecodeRangesFor(line);
 		if(ranges.isEmpty()) return;
 
 		Document doc = bytecodeEditor.getDocument();
@@ -128,7 +173,20 @@ public final class CaretSync implements Disposable{
 		Document sourceDoc = FileDocumentManager.getInstance().getCachedDocument(file);
 		if(sourceDoc == null) return;
 
-		int sourceLine = mapping.sourceLineFor(bytecodeEditor.getCaretModel().getLogicalPosition().line);
+		int bytecodeLine = bytecodeEditor.getCaretModel().getLogicalPosition().line;
+		var insns        = currentInsnMapping(sourceDoc);
+		var exact        = insns == null? null : insns.sourceFor(bytecodeLine);
+		if(exact != null && exact.getEndOffset()<=sourceDoc.getTextLength()){
+			for(Editor editor : EditorFactory.getInstance().getEditors(sourceDoc, project)){
+				if(editor == bytecodeEditor) continue;
+				sourceHighlights.add(editor.getMarkupModel().addRangeHighlighter(
+					SYNC_LINE, exact.getStartOffset(), exact.getEndOffset(), HighlighterLayer.SELECTION - 1, HighlighterTargetArea.EXACT_RANGE
+				));
+				editor.getScrollingModel().scrollTo(editor.offsetToLogicalPosition(exact.getStartOffset()), ScrollType.MAKE_VISIBLE);
+			}
+			return;
+		}
+		int sourceLine = mapping.sourceLineFor(bytecodeLine);
 		if(sourceLine<0 || sourceLine>=sourceDoc.getLineCount()) return;
 
 		for(Editor editor : EditorFactory.getInstance().getEditors(sourceDoc, project)){

@@ -66,6 +66,16 @@ public class LineMappingTest{
 	}
 
 	@Test
+	void decompiledLines(){
+		// Decompiled code puts class file line 2 on line 10, line 3 nowhere
+		var m = LineMapping.parse(SAMPLE, l -> l == 2? 10 : -1);
+		assertEquals(m.bytecodeRangesFor(10), List.of(new LineMapping.Range(6, 9), new LineMapping.Range(20, 23)));
+		assertEquals(m.bytecodeRangesFor(2), List.of());
+		assertEquals(m.bytecodeRangesFor(3), List.of());
+		for(int line = 10; line<=13; line++) assertEquals(m.sourceLineFor(line), -1, "line " + line);
+	}
+
+	@Test
 	void noDebugInfo(){
 		var m = LineMapping.parse(SAMPLE.replaceAll("(?m)^ +LINENUMBER.*\n", ""));
 		assertTrue(m.isEmpty());

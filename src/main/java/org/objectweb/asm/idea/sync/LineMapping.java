@@ -39,6 +39,14 @@ public final class LineMapping{
 	 * inherits the most recent {@code LINENUMBER} of its method.
 	 */
 	public static LineMapping parse(String bytecodeText){
+		return parse(bytecodeText, java.util.function.IntUnaryOperator.identity());
+	}
+
+	/**
+	 * @param lineMap translates the class file's line numbers (0-based) to lines of the document shown as the source,
+	 *                -1 for lines it does not have
+	 */
+	public static LineMapping parse(String bytecodeText, java.util.function.IntUnaryOperator lineMap){
 		String[] lines   = bytecodeText.split("\n", -1);
 		int[]    mapping = new int[lines.length];
 		Arrays.fill(mapping, -1);
@@ -56,6 +64,7 @@ public final class LineMapping{
 
 			if(trimmed.startsWith("LINENUMBER ")){
 				int sourceLine = parseLineNumber(trimmed);
+				if(sourceLine>=0) sourceLine = lineMap.applyAsInt(sourceLine);
 				current = sourceLine;
 				mapping[i] = sourceLine;
 				// The label the line number is attached to belongs to it as well

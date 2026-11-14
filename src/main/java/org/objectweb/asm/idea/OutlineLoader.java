@@ -1,5 +1,7 @@
 package org.objectweb.asm.idea;
 
+import java.util.function.IntUnaryOperator;
+import com.intellij.execution.filters.LineNumbersMapping;
 import com.intellij.ide.highlighter.JavaFileType;
 import com.intellij.ide.util.JavaAnonymousClassesHelper;
 import com.intellij.openapi.application.Application;
@@ -7,7 +9,9 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.compiler.CompilerManager;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.Module;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.module.ModuleUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.CompilerModuleExtension;
@@ -38,6 +42,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.idea.config.ASMPluginComponent;
+import org.objectweb.asm.idea.sync.InsnMapping;
+import org.objectweb.asm.idea.sync.RecordingTextifier;
 import org.objectweb.asm.util.TraceClassVisitor;
 
 import java.io.IOException;
@@ -61,6 +67,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class OutlineLoader{
 
 	public static final String TOOL_WINDOW_ID = "ASM";
+	
+	private static final Logger LOG = Logger.getInstance(OutlineLoader.class);
 
 	/**
 	 * @param generation    loads are numbered so a slow, older load never overwrites a newer one
@@ -109,8 +117,8 @@ public final class OutlineLoader{
 
 		final Application app = ApplicationManager.getApplication();
 		if(isClass){
-			// The editor shows decompiled code, its lines do not match the class' line numbers
-			app.executeOnPooledThread(() -> decode(virtualFile, null, request));
+			// The editor shows decompiled code, synced through the decompiler's line mapping
+			app.executeOnPooledThread(() -> decode(virtualFile, virtualFile, request));
 			return;
 		}
 		if(!virtualFile.isInLocalFileSystem() && !virtualFile.isWritable()){
@@ -236,7 +244,7 @@ public final class OutlineLoader{
 		return null;
 	}
 
-	private static @Nullable String getJVMClassName(PsiClass aClass){
+	public static @Nullable String getJVMClassName(PsiClass aClass){
 		if(!(aClass instanceof PsiAnonymousClass)){
 			return ClassUtil.getJVMClassName(aClass);
 		}
@@ -274,15 +282,26 @@ public final class OutlineLoader{
 			return;
 		}
 
+		// A class file is its own source when it is shown decompiled, but with lines of its own
+		IntUnaryOperator lineMap = IntUnaryOperator.identity();
+		if(sourceFile != null && isClassFile(sourceFile)){
+			lineMap = decompiledLines(sourceFile);
+			if(lineMap == null) sourceFile = null;
+		}
+		final IntUnaryOperator lines  = lineMap == null? IntUnaryOperator.identity() : lineMap;
+		final VirtualFile      source = sourceFile;
+
+		record Outline(String code, @Nullable RecordingTextifier.Result printed, @Nullable InsnMapping mapping){ }
 		CompletableFuture
 			.supplyAsync(() -> {
-				var stringWriter = new StringWriter();
-				reader.accept(new TraceClassVisitor(new PrintWriter(stringWriter)), computeFlags(config));
-				return stringWriter.toString();
+				var textifier = new RecordingTextifier(lines);
+				reader.accept(new TraceClassVisitor(null, textifier, null), computeFlags(config));
+				var printed = textifier.print();
+				return new Outline(printed.text(), printed, buildInsnMapping(source, reader.getClassName(), printed));
 			})
-			.exceptionally(e -> mapVisitErr(e, config))
-			.thenAcceptAsync(code -> {
-				BytecodeOutline.getInstance(project).setCode(file, sourceFile, code);
+			.exceptionally(e -> new Outline(mapVisitErr(e, config), null, null))
+			.thenAcceptAsync(outline -> {
+				BytecodeOutline.getInstance(project).setCode(file, source, outline.code(), outline.printed(), outline.mapping(), lines);
 				afterBytecodeShown(request);
 			}, exec);
 
@@ -325,6 +344,51 @@ public final class OutlineLoader{
 			.thenAcceptAsync(code -> GroovifiedView.getInstance(project).setCode(file, code), exec);
 	}
 
+	/**
+	 * Per instruction source mapping. Best effort: any failure just means falling back to line matching.
+	 */
+	private @Nullable InsnMapping buildInsnMapping(@Nullable VirtualFile sourceFile, String className, RecordingTextifier.Result printed){
+		if(sourceFile == null) return null;
+		try{
+			return ApplicationManager.getApplication().runReadAction((Computable<InsnMapping>)() -> {
+				if(project.isDisposed() || !sourceFile.isValid()) return null;
+				var psiFile  = PsiManager.getInstance(project).findFile(sourceFile);
+				// Decompiled code: the Java file behind the text shown
+				if(psiFile instanceof PsiCompiledElement compiled && compiled.getMirror() instanceof PsiFile mirror) psiFile = mirror;
+				var document = FileDocumentManager.getInstance().getDocument(sourceFile);
+				if(psiFile == null || document == null) return null;
+				return InsnMapping.build(psiFile, document, className, printed);
+			});
+		}catch(ProcessCanceledException e){
+			throw e;
+		}catch(Throwable e){
+			LOG.warn("Could not map instructions of " + className + " to source", e);
+			return null;
+		}
+	}
+	
+	private static boolean isClassFile(VirtualFile file){
+		return "class".equals(file.getExtension());
+	}
+
+	/**
+	 * The decompiler records which lines of its text each line of the class file became.
+	 *
+	 * @return class file line to decompiled line, both 0-based; null if the decompiler gave no mapping
+	 */
+	private static @Nullable IntUnaryOperator decompiledLines(VirtualFile classFile){
+		return ApplicationManager.getApplication().runReadAction((Computable<IntUnaryOperator>)() -> {
+			// Decompiles if that has not happened yet, which is when the mapping is made
+			if(FileDocumentManager.getInstance().getDocument(classFile) == null) return null;
+			var mapping = classFile.getUserData(LineNumbersMapping.LINE_NUMBERS_MAPPING_KEY);
+			if(mapping == null) return null;
+			return line -> {
+				int mapped = mapping.bytecodeToSource(line + 1);
+				return mapped>0? mapped - 1 : -1;
+			};
+		});
+	}
+
 	private void afterBytecodeShown(Request request){
 		var outline = BytecodeOutline.getInstance(project);
 		if(request.userTriggered()){
@@ -336,7 +400,7 @@ public final class OutlineLoader{
 		}
 	}
 
-	private static String mapVisitErr(Throwable e, ASMPluginComponent config){
+	static String mapVisitErr(Throwable e, ASMPluginComponent config){
 		if(e instanceof CompletionException ce && ce.getCause() != null) e = ce.getCause();
 		var printw = new StringWriter();
 		e.printStackTrace(new PrintWriter(printw));
@@ -349,7 +413,7 @@ public final class OutlineLoader{
 		       "*/";
 	}
 
-	private static int computeFlags(ASMPluginComponent config){
+	static int computeFlags(ASMPluginComponent config){
 		int flags = 0;
 		if(config.isSkipDebug()) flags = flags|ClassReader.SKIP_DEBUG;
 		if(config.isSkipFrames()) flags = flags|ClassReader.SKIP_FRAMES;

@@ -1,21 +1,49 @@
 <idea-plugin url="https://github.com/thiakil/asm-bytecode-intellij">
 	<name>ASM Bytecode Outline Rebooted</name>
 	<description><![CDATA[
-		Displays bytecode for Java classes and ASMified code which will help you in your class generation.
-		Updated for newer IDEA versions.
+		Shows the bytecode of the Java class you are working on, explains it, and connects it back to the source.
+		Also shows the ASMified and Groovified code that generates the class with ASM.
 		<ul>
 			<li><b>Bytecode</b>, <b>ASMified</b> and <b>Groovified</b> views of the class at the caret, compiling it first if needed</li>
-			<li><b>Follow Editor</b> mode: the bytecode view follows the file and class being edited</li>
-			<li>Caret syncing: highlights the bytecode generated from the source line under the caret, and the source line of the selected bytecode</li>
+			<li><b>Follow Editor</b>: the bytecode view follows the file and class being edited</li>
+			<li><b>Caret syncing</b>: highlights the bytecode generated from the source line under the caret, and the source of the selected bytecode</li>
+			<li><b>Java syntax interpretation</b>: syncing matches individual instructions to the expressions they come from, such as one call in a stream chain or a lambda body</li>
+			<li><b>Instruction documentation</b>: the selected instruction's entry from the Java Virtual Machine Specification, and a plain description of what it does with its operands: arguments and return types of calls, local variable names, lambdas, string concatenation and other invokedynamic call sites. Stack map frames, labels, line numbers, the local variable table and the exception table are explained too</li>
+			<li><b>Bytecode highlighting</b>: opcodes, labels, class, method and field names and descriptors each get their own color, customizable in Settings | Editor | Color Scheme | ASM Bytecode</li>
+			<li><b>Navigation</b>: Ctrl+click or Go to Declaration on class, method and field names opens their source; lambda methods open the lambda, labels jump to where they are placed. Methods and invokedynamic bootstrap arguments can be folded</li>
+			<li><b>Usages</b>: what is under the caret is highlighted everywhere the bytecode uses it, writes apart from reads, and Find Usages lists the lines. From Java source, <i>Find Usages in Bytecode</i> shows where the bytecode uses a method, field or class, including calls through subclasses</li>
+			<li><b>Class files</b>: a <i>Bytecode</i> tab beside the decompiled text, with all of the above. The tool window also syncs with decompiled code</li>
 			<li>Diff view against the previous version of the bytecode</li>
 			<li>Works with source files, library sources and .class files</li>
 		</ul>
 	]]></description>
-	<version>0.5.0</version>
+	<version>1.0.0</version>
 	<vendor>LapisSea / thiakil / melix</vendor>
 	<id>asm.bytecode_outline.re</id>
 	
 	<change-notes><![CDATA[
+		<b>Version 1.0.0</b>
+		<p>The bytecode view goes from a text dump to something you can read, explore and connect back to your code.</p>
+		<ul>
+			<li><b>Java syntax interpretation</b>: caret syncing now matches individual instructions to the expressions they come from, not just whole lines. Click one call in a stream chain or a lambda body and only its bytecode lights up, and the other way around. Can be turned off from the tool window toolbar</li>
+			<li><b>Instruction documentation</b>: a panel under the bytecode explains the line under the caret.
+				<ul>
+					<li>The instruction's entry from the official JVM Specification (downloaded and cached, not bundled)</li>
+					<li>What it does with its operands, in plain words: the arguments and return type of a call, the name of the local variable being loaded or stored, what a lambda captures, the recipe of a string concatenation, and other invokedynamic call sites</li>
+					<li>Stack map frames (FRAME lines) are decoded into the full list of local variable and stack types they describe</li>
+					<li>Labels, line numbers, the local variable table and maximum stack and locals are described, with debug info marked as such, along with the exception table</li>
+				</ul>
+				Can be hidden from the toolbar</li>
+			<li><b>Bytecode highlighting</b>: the bytecode has its own highlighter instead of being read as Java. Opcodes, labels, packages, class names, methods, fields, local variables and descriptors each get their own color, customizable in Settings | Editor | Color Scheme | ASM Bytecode</li>
+			<li><b>Navigation</b>: Ctrl+click or Go to Declaration on a class, method or field opens its declaration, using attached sources where there are any. Synthetic lambda methods open the lambda, and labels jump to where they are placed. Methods, invokedynamic bootstrap arguments and switch tables can be folded</li>
+			<li><b>Usages</b>: the class, method, field, label or local variable under the caret is highlighted wherever it is used, with writes marked apart from reads. Find Usages and Show Usages list them in a popup. From Java source, <i>Find Usages in Bytecode</i> in the editor menu shows where the bytecode uses a method, field or class, including calls compiled through a subclass</li>
+			<li><b>Class files</b>
+				<ul>
+					<li>Opened .class files get a <i>Bytecode</i> tab next to the decompiled code, with highlighting, navigation, usages, folding and instruction docs</li>
+					<li>Caret syncing and Follow Editor now work with decompiled code too, translated through the decompiler's line mapping</li>
+				</ul>
+			</li>
+		</ul>
 		<b>Version 0.5.0</b>
 		<ul>
 			<li>Follow Editor mode: the bytecode view shows the class being edited and follows file and class changes</li>
@@ -137,11 +165,22 @@
 			<add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
 			<add-to-group group-id="CodeMenu" anchor="last"/>
 		</action>
+		<action id="asm.findUsagesInBytecode" class="org.objectweb.asm.idea.nav.FindUsagesInBytecodeAction"
+		        text="Find Usages in Bytecode"
+		        description="Lists where the bytecode shown in the ASM tool window uses the method, field or class at the caret">
+			<add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="showBytecodeOutline"/>
+		</action>
 	</actions>
 	
 	<extensions defaultExtensionNs="com.intellij">
 		<toolWindow id="ASM" anchor="right" icon="/images/asm.png"
 		            factoryClass="org.objectweb.asm.idea.BytecodeOutlineToolWindowFactory"/>
+		<fileType name="ASM Bytecode" language="ASMBytecode" fieldName="INSTANCE"
+		          implementationClass="org.objectweb.asm.idea.highlight.BytecodeFileType"/>
+		<lang.syntaxHighlighterFactory language="ASMBytecode"
+		                               implementationClass="org.objectweb.asm.idea.highlight.BytecodeHighlighterFactory"/>
+		<colorSettingsPage implementation="org.objectweb.asm.idea.highlight.BytecodeColorSettingsPage"/>
+		<fileEditorProvider implementation="org.objectweb.asm.idea.ClassFileEditorProvider"/>
 		<projectService serviceImplementation="org.objectweb.asm.idea.config.ASMPluginComponent"/>
 		<projectService serviceImplementation="org.objectweb.asm.idea.BytecodeOutline"/>
 		<projectService serviceImplementation="org.objectweb.asm.idea.BytecodeASMified"/>

@@ -33,8 +33,8 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.EditorFactory;
 import com.intellij.openapi.editor.ScrollType;
+import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.FileTypeManager;
-import com.intellij.openapi.fileTypes.FileTypeRegistry;
 import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.SimpleToolWindowPanel;
@@ -58,7 +58,7 @@ import java.awt.BorderLayout;
  */
 public class ACodeView extends SimpleToolWindowPanel implements Disposable{
 	protected final Project project;
-	private final   String  extension;
+	private final   FileType fileType;
 	
 	
 	protected Editor             editor;
@@ -69,9 +69,13 @@ public class ACodeView extends SimpleToolWindowPanel implements Disposable{
 	private   VirtualFile previousFile;
 	
 	public ACodeView(final Project project, final String fileExtension){
+		this(project, FileTypeManager.getInstance().getFileTypeByExtension(fileExtension));
+	}
+	
+	public ACodeView(final Project project, final FileType fileType){
 		super(true, true);
 		this.project = project;
-		this.extension = fileExtension;
+		this.fileType = fileType;
 		setupUI();
 	}
 	
@@ -82,7 +86,7 @@ public class ACodeView extends SimpleToolWindowPanel implements Disposable{
 	private void setupUI(){
 		final EditorFactory editorFactory = EditorFactory.getInstance();
 		document = editorFactory.createDocument("");
-		editor = editorFactory.createEditor(document, project, FileTypeManager.getInstance().getFileTypeByExtension(extension), true);
+		editor = editorFactory.createEditor(document, project, fileType, true);
 		
 		final JComponent editorComponent = editor.getComponent();
 		add(editorComponent);
@@ -160,8 +164,7 @@ public class ACodeView extends SimpleToolWindowPanel implements Disposable{
 		
 		@Override
 		public void actionPerformed(final @NotNull AnActionEvent e){
-			// there must be a simpler way to obtain the file type
-			var psiFile        = FileTypeRegistry.getInstance().getFileTypeByExtension(extension);
+			var psiFile        = fileType;
 			var currentContent = DiffContentFactory.getInstance().create(previousFile == null? "" : document.getText(), psiFile);
 			var oldContent     = DiffContentFactory.getInstance().create(previousCode == null? "" : previousCode, psiFile);
 			DiffManager.getInstance().showDiff(
